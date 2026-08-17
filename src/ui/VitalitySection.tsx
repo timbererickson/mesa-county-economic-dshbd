@@ -11,8 +11,8 @@ import {
 } from 'recharts'
 import { cn } from '../../lib/shadcn/utils'
 
-import { QuarterFilter } from '../../components/QuarterFilter'
-import { useSectionFilter } from '../../hooks/useSectionFilter'
+import { QuarterFilter } from '../components/QuarterFilter'
+import { useSectionFilter } from '../hooks/useSectionFilter'
 
 const TEAL = '#0e7490'
 const PINK = '#e4808c'
