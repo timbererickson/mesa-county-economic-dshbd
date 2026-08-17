@@ -9,7 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell, ReferenceLine
 } from 'recharts'
-import { cn } from '../../lib/shadcn/utils'
+import { cn } from '../lib/shadcn/utils'
 
 import { QuarterFilter } from '../components/QuarterFilter'
 import { useSectionFilter } from '../hooks/useSectionFilter'
