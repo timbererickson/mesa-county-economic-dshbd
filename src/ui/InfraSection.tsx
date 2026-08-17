@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Card, CardContent } from '../lib/shadcn/card'
-import { Badge } from '../../lib/shadcn/badge'
+import { Badge } from '../lib/shadcn/badge'
 import { HardHat, MapPin } from 'lucide-react'
 import { QuarterFilter } from '../../components/QuarterFilter'
 import { useSectionFilter } from '../../hooks/useSectionFilter'
