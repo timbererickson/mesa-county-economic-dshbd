@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../../lib/shadcn/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../lib/shadcn/card'
 import { Landmark, FileText } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
