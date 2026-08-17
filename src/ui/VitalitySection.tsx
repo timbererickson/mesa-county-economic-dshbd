@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../../lib/shadcn/card'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../lib/shadcn/tabs'
+import { Card, CardContent, CardHeader, CardTitle } from '../lib/shadcn/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../lib/shadcn/tabs'
 import { 
   TrendingUp, Users, UserMinus, UserCheck, 
   DollarSign, Wallet, ArrowUpRight, ArrowDownRight, Briefcase
