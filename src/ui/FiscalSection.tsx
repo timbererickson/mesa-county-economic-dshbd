@@ -5,8 +5,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { QuarterFilter } from '../../components/QuarterFilter'
-import { useSectionFilter } from '../../hooks/useSectionFilter'
+import { QuarterFilter } from '../components/QuarterFilter'
+import { useSectionFilter } from '../hooks/useSectionFilter'
 
 const TEAL = '#0e7490'
 const PINK = '#e4808c'
