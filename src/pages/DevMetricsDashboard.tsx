@@ -2,9 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import fetchEconomicVitality from '../backend/getEconomicVitality'
 import fetchIndicatorData from '../backend/getIndicatorData'
 import fetchPermitData from '../backend/getPermitData'
+
+// Import UI Sections
+import HousingSection from '../ui/HousingSection'
+import InfraSection from '../ui/InfraSection'
+import FiscalSection from '../ui/FiscalSection'
+import VitalitySection from '../ui/VitalitySection'
+
 import {
-  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, LineChart, Line, ReferenceLine,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line,
 } from 'recharts'
 import {
   useReactTable,
@@ -74,7 +81,7 @@ function StatCard({
   accent: string
 }) {
   return (
-    <div className="rounded-xl border p-5 shadow-sm flex items-start justify-between gap-4" style={{ backgroundColor: '#0e7490' }}>
+    <div className="rounded-xl border p-5 shadow-sm flex items-start justify-between gap-4" style={{ backgroundColor: TEAL }}>
       <div className="flex flex-col gap-1 min-w-0">
         <p className="text-sm font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{title}</p>
         <p className="text-3xl font-bold tracking-tight text-white">{value}</p>
@@ -224,6 +231,9 @@ function SectionHeader({
 export default function DevMetricsDashboard() {
   const [loading, setLoading] = useState(true)
   const [permitData, setPermitData] = useState<any>(null)
+  const [indicatorData, setIndicatorData] = useState<any>(null)
+  const [vitalityData, setVitalityData] = useState<any>(null)
+
   const [selectedYear, setSelectedYear] = useState('2026')
   const [selectedQuarter, setSelectedQuarter] = useState('all')
   const [activeTab, setActiveTab] = useState<'permits' | 'turnaround' | 'major'>('permits')
@@ -231,12 +241,14 @@ export default function DevMetricsDashboard() {
   async function loadData() {
     setLoading(true)
     try {
-      const [permits] = await Promise.all([
+      const [permits, indicators, vitality] = await Promise.all([
         fetchPermitData(),
         fetchIndicatorData(),
         fetchEconomicVitality()
       ])
       setPermitData(permits)
+      setIndicatorData(indicators)
+      setVitalityData(vitality)
     } catch (e) {
       console.error('Failed to load Google Sheet data:', e)
     } finally {
@@ -307,128 +319,171 @@ export default function DevMetricsDashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-10">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
 
-        <SectionHeader
-          icon={ClipboardList}
-          title="Development Process Metrics"
-          description="Tracks the speed and volume of commercial building permit activity in Mesa County."
-        />
+        {/* Section 1: Development Metrics */}
+        <div>
+          <SectionHeader
+            icon={ClipboardList}
+            title="Development Process Metrics"
+            description="Tracks the speed and volume of commercial building permit activity in Mesa County."
+          />
 
-        <QuarterFilter
-          allQuarters={permitQuarters}
-          selectedYear={selectedYear}
-          selectedQuarter={selectedQuarter}
-          onYearChange={setSelectedYear}
-          onQuarterChange={setSelectedQuarter}
-        />
+          <QuarterFilter
+            allQuarters={permitQuarters}
+            selectedYear={selectedYear}
+            selectedQuarter={selectedQuarter}
+            onYearChange={setSelectedYear}
+            onQuarterChange={setSelectedQuarter}
+          />
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Median Time to Permit"
-            value={kpiMedianDays}
-            sub={selectedQuarter === 'all' ? `Weighted avg in ${selectedYear}` : `Median for ${selectedQuarter}`}
-            icon={Clock}
-            accent="bg-[#e4808c]/30 text-white"
-          />
-          <StatCard
-            title="Projects in Queue"
-            value={kpiQueue}
-            sub="Awaiting issuance"
-            icon={ListFilter}
-            accent="bg-[#e4808c]/30 text-white"
-          />
-          <StatCard
-            title="Major Projects (≥ $1M)"
-            value={kpiMajorCount}
-            sub={`${kpiTotalPermits.toLocaleString()} total permits`}
-            icon={Building2}
-            accent="bg-[#e4808c]/30 text-white"
-          />
-          <StatCard
-            title="Major Projects Value"
-            value={formatCompact(kpiMajorValue)}
-            sub="Combined estimated value"
-            icon={DollarSign}
-            accent="bg-[#e4808c]/30 text-white"
-          />
-        </div>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            <StatCard
+              title="Median Time to Permit"
+              value={kpiMedianDays}
+              sub={selectedQuarter === 'all' ? `Weighted avg in ${selectedYear}` : `Median for ${selectedQuarter}`}
+              icon={Clock}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+            <StatCard
+              title="Projects in Queue"
+              value={kpiQueue}
+              sub="Awaiting issuance"
+              icon={ListFilter}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+            <StatCard
+              title="Major Projects (≥ $1M)"
+              value={kpiMajorCount}
+              sub={`${kpiTotalPermits.toLocaleString()} total permits`}
+              icon={Building2}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+            <StatCard
+              title="Major Projects Value"
+              value={formatCompact(kpiMajorValue)}
+              sub="Combined estimated value"
+              icon={DollarSign}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+          </div>
 
-        {/* Chart View Selection */}
-        <div className="border rounded-xl p-6 bg-card space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-base font-semibold">Quarterly Breakdown</h2>
-            <div className="flex gap-2 border p-1 rounded-lg bg-muted/30">
-              <button
-                onClick={() => setActiveTab('permits')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'permits' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
-              >
-                Permit Counts
-              </button>
-              <button
-                onClick={() => setActiveTab('turnaround')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'turnaround' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
-              >
-                Turnaround Time
-              </button>
-              <button
-                onClick={() => setActiveTab('major')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'major' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
-              >
-                Major Project Value
-              </button>
+          {/* Chart View Selection */}
+          <div className="border rounded-xl p-6 bg-card space-y-4 mt-6">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-base font-semibold">Quarterly Breakdown</h2>
+              <div className="flex gap-2 border p-1 rounded-lg bg-muted/30">
+                <button
+                  onClick={() => setActiveTab('permits')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'permits' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  Permit Counts
+                </button>
+                <button
+                  onClick={() => setActiveTab('turnaround')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'turnaround' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  Turnaround Time
+                </button>
+                <button
+                  onClick={() => setActiveTab('major')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'major' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  Major Project Value
+                </button>
+              </div>
             </div>
+
+            {activeTab === 'permits' && (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={yearQuarterStats} barCategoryGap="35%">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="quarter" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="commercial" name="Commercial" fill={TEAL} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="residential" name="Residential" fill={PINK} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+
+            {activeTab === 'turnaround' && (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={yearQuarterStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="quarter" />
+                  <YAxis unit=" d" />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="medianDays" name="Median Days" stroke={TEAL} strokeWidth={2.5} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+
+            {activeTab === 'major' && (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={yearQuarterStats} barCategoryGap="45%">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="quarter" />
+                  <YAxis tickFormatter={(v: number) => `$${(v / 1_000_000).toFixed(0)}M`} />
+                  <Tooltip formatter={(val) => [formatCurrency(Number(val ?? 0)), 'Est. Value']} />
+                  <Bar dataKey="majorValue" name="Major Project Value" fill={PINK} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
-          {activeTab === 'permits' && (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={yearQuarterStats} barCategoryGap="35%">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="quarter" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="commercial" name="Commercial" fill={TEAL} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="residential" name="Residential" fill={PINK} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-
-          {activeTab === 'turnaround' && (
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={yearQuarterStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="quarter" />
-                <YAxis unit=" d" />
-                <Tooltip />
-                <Line type="monotone" dataKey="medianDays" name="Median Days" stroke={TEAL} strokeWidth={2.5} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-
-          {activeTab === 'major' && (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={yearQuarterStats} barCategoryGap="45%">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="quarter" />
-                <YAxis tickFormatter={(v: number) => `$${(v / 1_000_000).toFixed(0)}M`} />
-                <Tooltip formatter={(val) => [formatCurrency(Number(val ?? 0)), 'Est. Value']} />
-                <Bar dataKey="majorValue" name="Major Project Value" fill={PINK} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          {/* Major Projects Table */}
+          <div className="border rounded-xl p-6 bg-card space-y-4 mt-6">
+            <div>
+              <h3 className="text-base font-semibold">Major Projects Under Construction</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Permits with estimated value ≥ $1,000,000 ({filteredProjects.length} projects found)
+              </p>
+            </div>
+            <MajorProjectsTable projects={filteredProjects} />
+          </div>
         </div>
 
-        {/* Major Projects Table */}
-        <div className="border rounded-xl p-6 bg-card space-y-4">
-          <div>
-            <h3 className="text-base font-semibold">Major Projects Under Construction</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Permits with estimated value ≥ $1,000,000 ({filteredProjects.length} projects found)
-            </p>
-          </div>
-          <MajorProjectsTable projects={filteredProjects} />
+        {/* Section 2: Economic Vitality */}
+        <div>
+          <SectionHeader
+            icon={TrendingUp}
+            title="Economic Vitality Indicators"
+            description="Key labor market indicators reflecting Mesa County's employment landscape, workforce participation, job creation, and wage trends."
+          />
+          <VitalitySection data={vitalityData?.quarterlyData ?? []} />
+        </div>
+
+        {/* Section 3: Housing Pressure */}
+        <div>
+          <SectionHeader
+            icon={Home}
+            title="Housing Pressure Indicators"
+            description="Measures housing market conditions across Mesa County, including price trends, available inventory, and new residential construction."
+          />
+          <HousingSection rows={indicatorData?.housingRows ?? []} />
+        </div>
+
+        {/* Section 4: Infrastructure & Capacity */}
+        <div>
+          <SectionHeader
+            icon={HardHat}
+            title="Infrastructure & Capacity"
+            description="Highlights the status of major public infrastructure investments and shovel-ready land opportunities."
+          />
+          <InfraSection rows={indicatorData?.infraRows ?? []} />
+        </div>
+
+        {/* Section 5: Fiscal & Activity Signals */}
+        <div>
+          <SectionHeader
+            icon={Landmark}
+            title="Fiscal & Activity Signals"
+            description="Tracks sales tax collections as a real-time indicator of economic activity and consumer spending across Mesa County."
+          />
+          <FiscalSection rows={indicatorData?.housingRows ?? []} />
         </div>
 
       </div>
