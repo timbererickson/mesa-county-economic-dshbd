@@ -4,7 +4,7 @@ import fetchIndicatorData from '../backend/getIndicatorData'
 import fetchPermitData from '../backend/getPermitData'
 
 // Import UI Sections
-import HousingSection from '../ui/HousingSection'
+
 import InfraSection from '../ui/InfraSection'
 import FiscalSection from '../ui/FiscalSection'
 import VitalitySection from '../ui/VitalitySection'
@@ -21,7 +21,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Home, Landmark, HardHat } from 'lucide-react'
+import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, Layers } from 'lucide-react'
 import { QuarterFilter } from '../components/QuarterFilter'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -338,7 +338,7 @@ export default function DevMetricsDashboard() {
           />
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mt-6">
             <StatCard
               title="Median Time to Permit"
               value={kpiMedianDays}
@@ -365,6 +365,30 @@ export default function DevMetricsDashboard() {
               value={formatCompact(kpiMajorValue)}
               sub="Combined estimated value"
               icon={DollarSign}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+            <StatCard
+              title="Housing Permits Issued"
+              value={(() => {
+                const rows: any[] = indicatorData?.housingRows ?? []
+                const yr = rows.filter((r: any) => r.year === selectedYear)
+                const row = selectedQuarter === 'all' ? yr[yr.length - 1] : yr.find((r: any) => r.quarter?.includes(selectedQuarter))
+                return row?.housingPermitsIssued != null ? row.housingPermitsIssued.toLocaleString() : '—'
+              })()}
+              sub="Residential permits"
+              icon={Home}
+              accent="bg-[#e4808c]/30 text-white"
+            />
+            <StatCard
+              title="Multifamily Units"
+              value={(() => {
+                const rows: any[] = indicatorData?.housingRows ?? []
+                const yr = rows.filter((r: any) => r.year === selectedYear)
+                const row = selectedQuarter === 'all' ? yr[yr.length - 1] : yr.find((r: any) => r.quarter?.includes(selectedQuarter))
+                return row?.multifamilyUnits != null ? row.multifamilyUnits.toLocaleString() : '—'
+              })()}
+              sub="Under construction"
+              icon={Layers}
               accent="bg-[#e4808c]/30 text-white"
             />
           </div>
@@ -447,24 +471,8 @@ export default function DevMetricsDashboard() {
         </div>
 
         {/* Section 2: Economic Vitality */}
-        <div>
-          <SectionHeader
-            icon={TrendingUp}
-            title="Economic Vitality Indicators"
-            description="Key labor market indicators reflecting Mesa County's employment landscape, workforce participation, job creation, and wage trends."
-          />
-          <VitalitySection data={vitalityData?.quarterlyData ?? []} />
-        </div>
+        <VitalitySection data={vitalityData?.quarterlyData} />
 
-        {/* Section 3: Housing Pressure */}
-        <div>
-          <SectionHeader
-            icon={Home}
-            title="Housing Pressure Indicators"
-            description="Measures housing market conditions across Mesa County, including price trends, available inventory, and new residential construction."
-          />
-          <HousingSection rows={indicatorData?.housingRows ?? []} />
-        </div>
 
         {/* Section 4: Infrastructure & Capacity */}
         <div>

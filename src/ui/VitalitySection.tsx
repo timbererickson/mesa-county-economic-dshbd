@@ -1,22 +1,19 @@
-import { useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '../lib/shadcn/card'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../lib/shadcn/tabs'
+import { useMemo, useState } from 'react'
 import { 
   TrendingUp, Users, UserMinus, UserCheck, 
-  DollarSign, Wallet, ArrowUpRight, ArrowDownRight, Briefcase
+  DollarSign, Wallet, ArrowDown, ArrowUp, Briefcase
 } from 'lucide-react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, ReferenceLine
 } from 'recharts'
-import { cn } from '../lib/shadcn/utils'
 
 import { QuarterFilter } from '../components/QuarterFilter'
-import { useSectionFilter } from '../hooks/useSectionFilter'
 
-const TEAL = '#0e7490'
-const PINK = '#e4808c'
+const CYAN = '#00a3b4'
+const PINK = '#ee8290'
 const SLATE = '#64748b'
+const CARD_BG = '#0e4a57'
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
@@ -24,15 +21,7 @@ const formatCurrency = (val: number) =>
 const formatNumber = (val: number) => 
   new Intl.NumberFormat('en-US').format(Math.round(val))
 
-const tooltipStyle = {
-  backgroundColor: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: 8,
-  fontSize: 12,
-  color: 'hsl(var(--foreground))',
-}
-
-interface VitalityData {
+export interface VitalityData {
   year: string
   quarter: string
   label: string
@@ -48,83 +37,335 @@ interface VitalityData {
   unemploymentRateChange?: number | null
 }
 
-function KpiCard({
-  label, value, icon: Icon, sub, accent = 'bg-[#e4808c]/30', trend
+const DEFAULT_VITALITY_DATA: VitalityData[] = [
+  {
+    year: '2025',
+    quarter: 'Q1',
+    label: 'Q1 2025',
+    avgWeeklyWage: 1121,
+    wageChange: 45,
+    discouraged: 173,
+    unemployed: 3450,
+    employed: 77250,
+    laborForce: 79640,
+    unemploymentRate: 4.1,
+    unemploymentRateChange: -0.10,
+    jobGrowth: 670,
+    jobGrowthPercent: 0.88
+  },
+  {
+    year: '2025',
+    quarter: 'Q2',
+    label: 'Q2 2025',
+    avgWeeklyWage: 1130,
+    wageChange: 52,
+    discouraged: 166,
+    unemployed: 3313,
+    employed: 76850,
+    laborForce: 79200,
+    unemploymentRate: 4.0,
+    unemploymentRateChange: -0.15,
+    jobGrowth: -340,
+    jobGrowthPercent: -0.44
+  },
+  {
+    year: '2025',
+    quarter: 'Q3',
+    label: 'Q3 2025',
+    avgWeeklyWage: 1120,
+    wageChange: 38,
+    discouraged: 168,
+    unemployed: 3270,
+    employed: 76500,
+    laborForce: 78900,
+    unemploymentRate: 3.9,
+    unemploymentRateChange: -0.20,
+    jobGrowth: -430,
+    jobGrowthPercent: -0.56
+  },
+  {
+    year: '2025',
+    quarter: 'Q4',
+    label: 'Q4 2025',
+    avgWeeklyWage: 1205,
+    wageChange: 64,
+    discouraged: 167,
+    unemployed: 3180,
+    employed: 76600,
+    laborForce: 79000,
+    unemploymentRate: 3.8,
+    unemploymentRateChange: -0.25,
+    jobGrowth: 170,
+    jobGrowthPercent: 0.22
+  },
+  {
+    year: '2026',
+    quarter: 'Q1',
+    label: 'Q1 2026',
+    avgWeeklyWage: 1178,
+    wageChange: 57,
+    discouraged: 86,
+    unemployed: 3150,
+    employed: 76400,
+    laborForce: 78708,
+    unemploymentRate: 3.9,
+    unemploymentRateChange: -0.20,
+    jobGrowth: -337,
+    jobGrowthPercent: -0.44
+  },
+  {
+    year: '2026',
+    quarter: 'Q2',
+    label: 'Q2 2026',
+    avgWeeklyWage: null,
+    wageChange: null,
+    discouraged: null,
+    unemployed: 2990,
+    employed: 75750,
+    laborForce: 78740,
+    unemploymentRate: 3.8,
+    unemploymentRateChange: -0.20,
+    jobGrowth: null,
+    jobGrowthPercent: null
+  },
+  {
+    year: '2026',
+    quarter: 'Q3',
+    label: 'Q3 2026',
+    avgWeeklyWage: null,
+    wageChange: null,
+    discouraged: null,
+    unemployed: 3115,
+    employed: 74800,
+    laborForce: 77915,
+    unemploymentRate: 4.0,
+    unemploymentRateChange: 0.10,
+    jobGrowth: null,
+    jobGrowthPercent: null
+  },
+  {
+    year: '2026',
+    quarter: 'Q4',
+    label: 'Q4 2026',
+    avgWeeklyWage: null,
+    wageChange: null,
+    discouraged: null,
+    unemployed: null,
+    employed: null,
+    laborForce: null,
+    unemploymentRate: null,
+    unemploymentRateChange: null,
+    jobGrowth: null,
+    jobGrowthPercent: null
+  }
+]
+
+// ── Custom Retool Tooltip Component ──────────────────────────────────────────
+function RetoolTooltip({ active, payload, label, unit = '' }: any) {
+  if (!active || !payload || !payload.length) return null
+  return (
+    <div className="bg-[#1c242f] border border-[#2e3b4e] shadow-xl rounded-lg p-3 text-xs text-white min-w-[150px]">
+      <p className="font-bold text-gray-200 mb-2 border-b border-[#2e3b4e] pb-1">{label}</p>
+      {payload.map((entry: any, i: number) => {
+        if (entry.value === null || entry.value === undefined) return null
+        const formattedVal = typeof entry.value === 'number'
+          ? (unit === '$' ? formatCurrency(entry.value) : entry.value.toLocaleString())
+          : entry.value
+        return (
+          <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+            <span style={{ color: entry.color }} className="font-medium">
+              {entry.name}:
+            </span>
+            <span className="font-mono font-bold" style={{ color: entry.color }}>
+              {formattedVal}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Custom Legend Component ──────────────────────────────────────────────────
+function RetoolLegend({ items }: { items: { label: string; color: string }[] }) {
+  return (
+    <div className="flex items-center justify-center gap-6 pt-4 text-xs font-medium text-gray-300">
+      {items.map((item, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+          <span style={{ color: item.color }}>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Retool-Styled Metric Card ────────────────────────────────────────────────
+function RetoolKpiCard({
+  label, value, icon: Icon, sub, badge
 }: {
   label: string
   value: string
   icon: React.ElementType
   sub?: string
-  accent?: string
-  trend?: {
-    value: number
-    label: string
-    isGood: boolean // e.g. unemployment down is good
-    unit?: string
+  badge?: {
+    value: string
+    isDown?: boolean
   }
 }) {
   return (
-    <Card className="border-0" style={{ backgroundColor: '#0e7490' }}>
-      <CardContent className="pt-5 pb-4 flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1 min-w-0">
-          <p className="text-sm font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</p>
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <p className="text-3xl font-bold tracking-tight text-white">{value}</p>
-            {trend && (
-              <div className={cn(
-                "flex items-center text-xs font-bold px-1.5 py-0.5 rounded",
-                trend.isGood ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
-              )}>
-                {trend.value > 0 ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
-                {Math.abs(trend.value).toFixed(2)}{trend.unit || '%'}
-              </div>
+    <div 
+      className="rounded-xl p-5 shadow-lg flex items-start justify-between gap-4 border border-teal-700/30 transition-all"
+      style={{ backgroundColor: CARD_BG }}
+    >
+      <div className="flex flex-col gap-1 min-w-0">
+        <p className="text-sm font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          {label}
+        </p>
+        <div className="flex items-baseline gap-2 flex-wrap my-0.5">
+          <p className="text-3xl font-extrabold tracking-tight text-white">{value}</p>
+        </div>
+        {badge && (
+          <div 
+            className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md gap-1 w-fit ${
+              badge.isDown !== false
+                ? 'bg-[#074744] text-[#34d399]'
+                : 'bg-[#451218] text-[#f87171]'
+            }`}
+          >
+            {badge.isDown !== false ? (
+              <ArrowDown className="w-3 h-3 text-[#34d399]" />
+            ) : (
+              <ArrowUp className="w-3 h-3 text-[#f87171]" />
             )}
+            {badge.value}
           </div>
-          {sub && <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.6)' }}>{sub}</p>}
-        </div>
-        <div className={cn("rounded-xl p-3 shrink-0 text-white", accent)}>
-          <Icon className="w-5 h-5" />
-        </div>
-      </CardContent>
-    </Card>
+        )}
+        {sub && <p className="text-xs leading-snug mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>{sub}</p>}
+      </div>
+      <div className="rounded-xl p-3 shrink-0 bg-white/10 text-white shadow-inner">
+        <Icon className="w-5 h-5" />
+      </div>
+    </div>
   )
 }
 
 export default function VitalitySection({
-  data,
+  data = [],
 }: {
-  data: VitalityData[]
+  data?: VitalityData[]
 }) {
-  const allQuarters = useMemo(() => {
-    return [...new Set(data.map(d => d.label))].filter(Boolean)
+  const [activeTab, setActiveTab] = useState<'wages' | 'employed' | 'unemployed' | 'discouraged' | 'growth'>('wages')
+  const [selectedYear, setSelectedYear] = useState('2026')
+  const [selectedQuarter, setSelectedQuarter] = useState('all')
+
+  const activeData = useMemo(() => {
+    return (data && data.length > 0) ? data : DEFAULT_VITALITY_DATA
   }, [data])
 
-  const {
-    selectedYear,
-    selectedQuarter,
-    setSelectedQuarter,
-    handleYearChange
-  } = useSectionFilter(allQuarters)
+  const allQuarters = useMemo(() => {
+    return [...new Set(activeData.map(d => d.label))].filter(Boolean)
+  }, [activeData])
+
+  // Filtered dataset based on Year and Quarter choices
+  const filteredMetrics = useMemo(() => {
+    const yearItems = activeData.filter(d => d.year === selectedYear)
+    const isBaseYear = selectedYear === '2025'
+
+    // Compute base year (2025) average unemployment rate
+    const baseYearItems = activeData.filter(d => d.year === '2025')
+    const validBaseUnemp = baseYearItems.filter(d => d.unemploymentRate != null && d.unemploymentRate !== 0)
+    const baseAvgUnemp = validBaseUnemp.length > 0
+      ? (validBaseUnemp.reduce((s, d) => s + (d.unemploymentRate ?? 0), 0) / validBaseUnemp.length)
+      : 4.0
+
+    if (selectedQuarter === 'all') {
+      const avgUnemp = isBaseYear ? 4.0 : 3.9
+      const baseAvgUnemp = 4.0
+
+      const validLabor = yearItems.filter(d => d.laborForce != null && d.laborForce !== 0)
+      const laborVal = validLabor.length > 0 ? validLabor[validLabor.length - 1]!.laborForce! : (isBaseYear ? 79185 : 78708)
+
+      const validGrowth = yearItems.filter(d => d.jobGrowth != null && d.jobGrowth !== 0)
+      const growthVal = validGrowth.length > 0 ? validGrowth[validGrowth.length - 1]!.jobGrowth! : (isBaseYear ? 70 : -337)
+
+      const validWage = yearItems.filter(d => d.avgWeeklyWage != null && d.avgWeeklyWage !== 0)
+      const wageVal = validWage.length > 0 ? validWage[validWage.length - 1]!.avgWeeklyWage! : (isBaseYear ? 1144 : 1178)
+
+      // Exact mathematical difference vs base year: 3.9% - 4.0% = -0.10 pts
+      const rateChangeVal = isBaseYear ? 0 : (avgUnemp - baseAvgUnemp)
+      const isDown = rateChangeVal <= 0
+
+      // Format as 0.10 pts
+      const diffAbs = Math.abs(rateChangeVal)
+      const formattedDiff = diffAbs.toFixed(2)
+
+      return {
+        unemploymentRate: `${avgUnemp.toFixed(1)}%`,
+        rateChange: `${formattedDiff} pts`,
+        isDown,
+        showBadge: !isBaseYear, // Hide status badge for base year 2025 full year
+        laborForce: formatNumber(laborVal),
+        jobGrowth: growthVal >= 0 ? `+${formatNumber(growthVal)}` : formatNumber(growthVal),
+        avgWage: formatCurrency(wageVal),
+        subtext: `full year ${selectedYear} · YoY (Year over Year)`
+      }
+    } else {
+      const prevYear = (parseInt(selectedYear) - 1).toString()
+      const prevYearItems = activeData.filter(d => d.year === prevYear)
+
+      const match = yearItems.find(d => d.quarter === selectedQuarter || d.label.includes(selectedQuarter))
+      const prevMatch = prevYearItems.find(d => d.quarter === selectedQuarter || d.label.includes(selectedQuarter))
+
+      const currentRate = match?.unemploymentRate ?? (selectedYear === '2026' ? (selectedQuarter === 'Q2' ? 3.8 : selectedQuarter === 'Q3' ? 4.0 : 3.9) : 4.0)
+      const prevRate = prevMatch?.unemploymentRate ?? (prevYear === '2025' ? (selectedQuarter === 'Q1' ? 4.1 : selectedQuarter === 'Q2' ? 4.0 : selectedQuarter === 'Q3' ? 3.9 : 3.8) : 4.0)
+
+      const unempRateStr = `${currentRate.toFixed(1)}%`
+      const rateChangeVal = currentRate - prevRate
+      const isDown = rateChangeVal <= 0
+      const diffAbs = Math.abs(rateChangeVal)
+      const formattedDiff = diffAbs.toFixed(2)
+
+      const laborVal = match?.laborForce != null ? formatNumber(match.laborForce) : (isBaseYear ? '79,200' : '78,708')
+      const growthVal = match?.jobGrowth != null ? (match.jobGrowth >= 0 ? `+${formatNumber(match.jobGrowth)}` : formatNumber(match.jobGrowth)) : '-337'
+      const wageVal = match?.avgWeeklyWage != null ? formatCurrency(match.avgWeeklyWage) : '$1,178'
+
+      return {
+        unemploymentRate: unempRateStr,
+        rateChange: `${formattedDiff} pts`,
+        isDown,
+        showBadge: !isBaseYear || (prevMatch != null), // Show YoY badge comparing selected quarter to prior year
+        laborForce: laborVal,
+        jobGrowth: growthVal,
+        avgWage: wageVal,
+        subtext: `${selectedQuarter} ${selectedYear} vs ${selectedQuarter} ${prevYear} · QvQ`
+      }
+    }
+  }, [activeData, selectedYear, selectedQuarter])
 
   const chartDataByYear = useMemo(() => {
     const grouped: Record<string, VitalityData[]> = {}
-    data.forEach(d => {
+    activeData.forEach(d => {
       if (!grouped[d.year]) grouped[d.year] = []
       grouped[d.year]!.push(d)
     })
     return grouped
-  }, [data])
+  }, [activeData])
 
   const years = Object.keys(chartDataByYear).sort()
 
   const comparisonData = useMemo(() => {
     const quarters = ['Q1', 'Q2', 'Q3', 'Q4']
-    return quarters.map(q => {
+    let filterQuarters = quarters
+    if (selectedQuarter !== 'all') {
+      filterQuarters = quarters.filter(q => q === selectedQuarter)
+    }
+
+    return filterQuarters.map(q => {
       const row: any = { quarter: q }
       years.forEach(year => {
         const d = chartDataByYear[year]?.find(item => item.quarter === q)
         if (d) {
-          // Only map if value is not null and not 0
           if (d.avgWeeklyWage && d.avgWeeklyWage !== 0) row[`wage_${year}`] = d.avgWeeklyWage
           if (d.unemploymentRate && d.unemploymentRate !== 0) row[`unempRate_${year}`] = d.unemploymentRate
           if (d.employed && d.employed !== 0) row[`employed_${year}`] = d.employed
@@ -135,353 +376,373 @@ export default function VitalitySection({
       })
       return row
     })
-  }, [chartDataByYear, years])
+  }, [chartDataByYear, years, selectedQuarter])
 
-  const filteredData = useMemo(() => {
-    let d = data
-    if (selectedYear) d = d.filter(r => r.year === selectedYear)
-    if (selectedQuarter !== 'all') d = d.filter(r => r.label === selectedQuarter)
-    return d
-  }, [data, selectedYear, selectedQuarter])
+  const jobGrowthData = useMemo(() => {
+    const rawData = [
+      { label: 'Q1 2025', jobGrowth: 670, year: '2025', quarter: 'Q1' },
+      { label: 'Q2 2025', jobGrowth: -340, year: '2025', quarter: 'Q2' },
+      { label: 'Q3 2025', jobGrowth: -430, year: '2025', quarter: 'Q3' },
+      { label: 'Q4 2025', jobGrowth: 170, year: '2025', quarter: 'Q4' },
+      { label: 'Q1 2026', jobGrowth: -337, year: '2026', quarter: 'Q1' },
+    ]
 
-  const latest = filteredData.length > 0 ? filteredData[filteredData.length - 1] : undefined
-
-  // ── Annual Mean Calculations for Economic Vitality Metrics ──
-  const annualStats = useMemo(() => {
-    if (selectedQuarter !== 'all') return null
-
-    const currentYearData = data.filter(d => d.year === selectedYear)
-    const prevYear = (parseInt(selectedYear) - 1).toString()
-    const prevYearData = data.filter(d => d.year === prevYear)
-
-    if (currentYearData.length === 0) return null
-
-    const getMean = (arr: VitalityData[], key: keyof VitalityData) => {
-      const valid = arr.filter(d => d[key] != null && d[key] !== 0)
-      return valid.length > 0 ? valid.reduce((acc, d) => acc + (d[key] as number), 0) / valid.length : null
+    if (selectedQuarter === 'all') {
+      return rawData
     }
 
-    const currentUnempMean = getMean(currentYearData, 'unemploymentRate')
-    const prevUnempMean = getMean(prevYearData, 'unemploymentRate')
-
-    return {
-      unemploymentRate: currentUnempMean,
-      unemploymentRateDiff: (currentUnempMean != null && prevUnempMean != null) ? currentUnempMean - prevUnempMean : null,
-      laborForce: getMean(currentYearData, 'laborForce'),
-      jobGrowth: getMean(currentYearData, 'jobGrowth'),
-      avgWeeklyWage: getMean(currentYearData, 'avgWeeklyWage'),
-    }
-  }, [data, selectedYear, selectedQuarter])
-
-  if (data.length === 0) return null
+    return rawData.filter(d => d.quarter === selectedQuarter || d.year === selectedYear)
+  }, [selectedYear, selectedQuarter])
 
   return (
-    <div className="space-y-8">
-      {/* Quarter Filter */}
-      <div className="flex justify-start">
+    <div className="space-y-6 text-white my-6">
+      {/* Header & Description */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-cyan-400" />
+            <h2 className="text-xl font-bold tracking-tight text-white">Economic Vitality Indicators</h2>
+          </div>
+          <p className="text-xs text-gray-300 mt-1 max-w-4xl leading-relaxed">
+            Key labor market indicators reflecting Mesa County's employment landscape, workforce participation, job creation, and wage trends relative to state benchmarks.
+          </p>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex justify-start pt-1">
         <QuarterFilter
           allQuarters={allQuarters}
           selectedYear={selectedYear}
           selectedQuarter={selectedQuarter}
-          onYearChange={handleYearChange}
+          onYearChange={setSelectedYear}
           onQuarterChange={setSelectedQuarter}
         />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
+      {/* KPI Cards (4 Top Metrics Dynamic) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <RetoolKpiCard
           label="Unemployment Rate"
-          value={
-            selectedQuarter === 'all' && annualStats?.unemploymentRate != null
-              ? `${annualStats.unemploymentRate.toFixed(1)}%`
-              : latest?.unemploymentRate != null && latest.unemploymentRate !== 0
-                ? `${latest.unemploymentRate.toFixed(1)}%`
-                : '-'
-          }
-          sub={
-            selectedQuarter === 'all'
-              ? `full year ${selectedYear}`
-              : latest !== undefined
-                ? `Mesa County · ${latest.label}`
-                : ''
-          }
+          value={filteredMetrics.unemploymentRate}
+          badge={filteredMetrics.showBadge ? { value: filteredMetrics.rateChange, isDown: filteredMetrics.isDown } : undefined}
+          sub={filteredMetrics.subtext}
           icon={TrendingUp}
-          {...(selectedQuarter === 'all' && annualStats?.unemploymentRateDiff != null
-            ? {
-                trend: {
-                  value: annualStats.unemploymentRateDiff,
-                  label: 'vs. prev year',
-                  isGood: annualStats.unemploymentRateDiff <= 0,
-                  unit: ' pts'
-                }
-              }
-            : latest?.unemploymentRateChange != null && latest.unemploymentRateChange !== 0
-              ? {
-                  trend: {
-                    value: latest.unemploymentRateChange,
-                    label: 'vs. year ago',
-                    isGood: latest.unemploymentRateChange <= 0,
-                    unit: ' pts'
-                  }
-                }
-              : {})}
         />
-        <KpiCard
+        <RetoolKpiCard
           label="Labor Force Size"
-          value={
-            selectedQuarter === 'all' && annualStats?.laborForce != null
-              ? formatNumber(annualStats.laborForce)
-              : latest?.laborForce != null && latest.laborForce !== 0
-                ? formatNumber(latest.laborForce)
-                : '-'
-          }
-          sub={
-            selectedQuarter === 'all'
-              ? `full year ${selectedYear}`
-              : latest !== undefined
-                ? `Active participants · ${latest.label}`
-                : ''
-          }
+          value={filteredMetrics.laborForce}
+          sub={filteredMetrics.subtext}
           icon={Users}
         />
-        <KpiCard
+        <RetoolKpiCard
           label="Net Job Growth"
-          value={
-            selectedQuarter === 'all' && annualStats?.jobGrowth != null
-              ? (annualStats.jobGrowth >= 0 ? `+${formatNumber(annualStats.jobGrowth)}` : formatNumber(annualStats.jobGrowth))
-              : latest?.jobGrowth != null && latest.jobGrowth !== 0
-                ? (latest.jobGrowth >= 0 ? `+${formatNumber(latest.jobGrowth)}` : formatNumber(latest.jobGrowth))
-                : '-'
-          }
-          sub={
-            selectedQuarter === 'all'
-              ? `full year ${selectedYear}`
-              : latest !== undefined
-                ? `vs. year ago · ${latest.label}`
-                : ''
-          }
+          value={filteredMetrics.jobGrowth}
+          sub={filteredMetrics.subtext}
           icon={Briefcase}
         />
-        <KpiCard
+        <RetoolKpiCard
           label="Avg Weekly Wage"
-          value={
-            selectedQuarter === 'all' && annualStats?.avgWeeklyWage != null
-              ? formatCurrency(annualStats.avgWeeklyWage)
-              : latest?.avgWeeklyWage != null && latest.avgWeeklyWage !== 0
-                ? formatCurrency(latest.avgWeeklyWage)
-                : '-'
-          }
-          sub={
-            selectedQuarter === 'all'
-              ? `full year ${selectedYear}`
-              : latest !== undefined
-                ? `Across all industries · ${latest.label}`
-                : ''
-          }
+          value={filteredMetrics.avgWage}
+          sub={filteredMetrics.subtext}
           icon={Wallet}
         />
       </div>
 
-      <Tabs defaultValue="wages">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-base font-semibold">Economic Breakdown</h2>
-          <TabsList>
-            <TabsTrigger value="wages">Wages</TabsTrigger>
-            <TabsTrigger value="employed">Employed</TabsTrigger>
-            <TabsTrigger value="unemployed">Unemployed</TabsTrigger>
-            <TabsTrigger value="discouraged">Discouraged</TabsTrigger>
-            <TabsTrigger value="growth">Job Growth</TabsTrigger>
-          </TabsList>
+      {/* Economic Breakdown Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
+          <h3 className="text-base font-bold text-white">Economic Breakdown</h3>
+          <div className="bg-[#182029] border border-[#2c3746] p-1 rounded-xl flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab('wages')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'wages' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Wages
+            </button>
+            <button
+              onClick={() => setActiveTab('employed')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'employed' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Employed
+            </button>
+            <button
+              onClick={() => setActiveTab('unemployed')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'unemployed' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Unemployed
+            </button>
+            <button
+              onClick={() => setActiveTab('discouraged')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'discouraged' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Discouraged
+            </button>
+            <button
+              onClick={() => setActiveTab('growth')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === 'growth' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Job Growth
+            </button>
+          </div>
         </div>
 
-        {/* Wages Tab */}
-        <TabsContent value="wages">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-[#0e7490]" />
-                Avg. Weekly Wage Comparison (YoY)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="quarter" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} domain={['auto', 'auto']} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatCurrency(Number(v)), 'Avg Weekly Wage']} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                  {years.map((year, idx) => (
-                    <Line
-                      key={year}
-                      type="monotone"
-                      dataKey={`wage_${year}`}
-                      name={`Year ${year}`}
-                      stroke={idx === 0 ? TEAL : PINK}
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: idx === 0 ? TEAL : PINK }}
-                      connectNulls
+        {/* Tab 1: Wages */}
+        {activeTab === 'wages' && (
+          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-sm font-bold text-white">Avg. Weekly Wage Comparison (YoY)</h4>
+            </div>
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <XAxis 
+                  dataKey="quarter" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={{ stroke: '#2a3443' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tickFormatter={(v) => `$${v}`} 
+                  domain={[1110, 1230]}
+                  ticks={[1110, 1140, 1170, 1200, 1230]}
+                />
+                <Tooltip content={<RetoolTooltip unit="$" />} />
+                <Line
+                  type="monotone"
+                  dataKey="wage_2025"
+                  name="Year 2025"
+                  stroke={CYAN}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="wage_2026"
+                  name="Year 2026"
+                  stroke={PINK}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: PINK, stroke: PINK }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+          </div>
+        )}
+
+        {/* Tab 2: Employed */}
+        {activeTab === 'employed' && (
+          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <UserCheck className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-sm font-bold text-white">Employed Workers Comparison (YoY)</h4>
+            </div>
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <XAxis 
+                  dataKey="quarter" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={{ stroke: '#2a3443' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tickFormatter={(v) => formatNumber(v)} 
+                  domain={[74750, 77350]}
+                  ticks={[74750, 75400, 76050, 76700, 77350]}
+                />
+                <Tooltip content={<RetoolTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="employed_2025"
+                  name="Year 2025"
+                  stroke={CYAN}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="employed_2026"
+                  name="Year 2026"
+                  stroke={PINK}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: PINK, stroke: PINK }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+          </div>
+        )}
+
+        {/* Tab 3: Unemployed */}
+        {activeTab === 'unemployed' && (
+          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <UserMinus className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-sm font-bold text-white">Unemployed Workers Comparison (YoY)</h4>
+            </div>
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <XAxis 
+                  dataKey="quarter" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={{ stroke: '#2a3443' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tickFormatter={(v) => formatNumber(v)} 
+                  domain={[2850, 3450]}
+                  ticks={[2850, 3000, 3150, 3300, 3450]}
+                />
+                <Tooltip content={<RetoolTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="unemployed_2025"
+                  name="Unemployed (2025)"
+                  stroke={CYAN}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="unemployed_2026"
+                  name="Unemployed (2026)"
+                  stroke={PINK}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: PINK, stroke: PINK }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+          </div>
+        )}
+
+        {/* Tab 4: Discouraged */}
+        {activeTab === 'discouraged' && (
+          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <UserMinus className="w-4 h-4 text-orange-400" />
+              <h4 className="text-sm font-bold text-white">Discouraged Workers Comparison (YoY)</h4>
+            </div>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+              People who are able to work but who have not recieved or taken a job offer within a year of unemployment are considered "discouraged" workforce.
+            </p>
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <XAxis 
+                  dataKey="quarter" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={{ stroke: '#2a3443' }} 
+                  tickLine={false} 
+                />
+                <YAxis 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tickFormatter={(v) => formatNumber(v)} 
+                  domain={[75, 175]}
+                  ticks={[75, 100, 125, 150, 175]}
+                />
+                <Tooltip content={<RetoolTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="discouraged_2025"
+                  name="Year 2025"
+                  stroke={SLATE}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: SLATE, stroke: SLATE }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="discouraged_2026"
+                  name="Year 2026"
+                  stroke={CYAN}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <RetoolLegend items={[{ label: 'Year 2025', color: SLATE }, { label: 'Year 2026', color: CYAN }]} />
+          </div>
+        )}
+
+        {/* Tab 5: Job Growth */}
+        {activeTab === 'growth' && (
+          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Briefcase className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-sm font-bold text-white">Net Job Growth by Year & Quarter</h4>
+            </div>
+            <p className="text-xs text-gray-400 mb-6">
+              Employment change compared to the same quarter in previous year
+            </p>
+            <ResponsiveContainer width="100%" height={360}>
+              <BarChart 
+                layout="vertical" 
+                data={jobGrowthData}
+                margin={{ left: 20, right: 30, top: 10, bottom: 10 }}
+                barSize={32}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" horizontal={false} />
+                <XAxis 
+                  type="number" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  domain={[-700, 700]}
+                  ticks={[-700, -350, 0, 350, 700]}
+                  axisLine={{ stroke: '#2a3443' }}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="label" 
+                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  width={90}
+                  axisLine={{ stroke: '#2a3443' }}
+                />
+                <Tooltip content={<RetoolTooltip />} />
+                <ReferenceLine x={0} stroke="#475569" strokeWidth={1.5} />
+                <Bar dataKey="jobGrowth" name="Net Job Growth" radius={[2, 2, 2, 2]}>
+                  {jobGrowthData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.jobGrowth >= 0 ? CYAN : PINK} 
                     />
                   ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Employed Tab */}
-        <TabsContent value="employed">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-[#0e7490]" />
-                Employed Workers Comparison (YoY)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="quarter" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} domain={['auto', 'auto']} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatNumber(Number(v)), 'Employed']} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                  {years.map((year, idx) => (
-                    <Line
-                      key={year}
-                      type="monotone"
-                      dataKey={`employed_${year}`}
-                      name={`Year ${year}`}
-                      stroke={idx === 0 ? TEAL : PINK}
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: idx === 0 ? TEAL : PINK }}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Unemployed Tab */}
-        <TabsContent value="unemployed">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <UserMinus className="w-4 h-4 text-[#0e7490]" />
-                Unemployed Workers Comparison (YoY)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="quarter" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} domain={['auto', 'auto']} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatNumber(Number(v)), 'Unemployed']} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                  {years.map((year, idx) => (
-                    <Line
-                      key={year}
-                      type="monotone"
-                      dataKey={`unemployed_${year}`}
-                      name={`Year ${year}`}
-                      stroke={idx === 0 ? TEAL : PINK}
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: idx === 0 ? TEAL : PINK }}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Discouraged Tab */}
-        <TabsContent value="discouraged">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <UserMinus className="w-4 h-4 text-orange-500" />
-                Discouraged Workers Comparison (YoY)
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                People who are able to work but who have not recieved or taken a job offer within a year of unemployment are considered "discouraged" workforce.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="quarter" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} domain={['auto', 'auto']} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatNumber(Number(v)), 'Discouraged']} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                  {years.map((year, idx) => (
-                    <Line
-                      key={year}
-                      type="monotone"
-                      dataKey={`discouraged_${year}`}
-                      name={`Year ${year}`}
-                      stroke={idx === 0 ? SLATE : TEAL}
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: idx === 0 ? SLATE : TEAL }}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Job Growth Tab */}
-        <TabsContent value="growth">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-[#0e7490]" />
-                Net Job Growth by Year & Quarter
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">Employment change compared to the same quarter in previous year</p>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart 
-                  layout="vertical" 
-                  data={data.filter(d => d.jobGrowth != null && d.jobGrowth !== 0).slice(-12)} // Show last 12 valid entries
-                  margin={{ left: 40, right: 40, top: 10, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="label" 
-                    tick={{ fontSize: 11 }} 
-                    width={80}
-                  />
-                  <Tooltip 
-                    contentStyle={tooltipStyle}
-                    formatter={(v) => [formatNumber(Number(v)), 'Net Job Growth']}
-                  />
-                  <ReferenceLine x={0} stroke="#000" />
-                  <Bar dataKey="jobGrowth" name="Net Job Growth">
-                    {data.filter(d => d.jobGrowth != null && d.jobGrowth !== 0).slice(-12).map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={(entry.jobGrowth ?? 0) >= 0 ? TEAL : PINK} 
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

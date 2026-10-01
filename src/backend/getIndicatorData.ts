@@ -32,22 +32,32 @@ function getYear(quarter: string): string {
 }
 
 async function readGoogleSheet(spreadsheetId: string, sheetName: string) {
-  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
-  const res = await fetch(url)
-  const text = await res.text()
-  const json = JSON.parse(text.substring(47, text.length - 2))
-  
-  const headers = json.table.cols.map((col: any) => col?.label || '')
-  return json.table.rows.map((row: any) => {
-    const obj: Record<string, any> = {}
-    row.c.forEach((cell: any, idx: number) => {
-      const header = headers[idx]
-      if (header) {
-        obj[header] = cell ? cell.v : null
-      }
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.warn(`Sheet "${sheetName}" returned ${res.status}`)
+      return []
+    }
+    const text = await res.text()
+    if (!text.includes('google.visualization.Query.setResponse')) {
+      console.warn(`Sheet "${sheetName}" did not return valid GViz JSON`)
+      return []
+    }
+    const json = JSON.parse(text.substring(47, text.length - 2))
+    const headers = json.table.cols.map((col: any) => col?.label || '')
+    return json.table.rows.map((row: any) => {
+      const obj: Record<string, any> = {}
+      row.c.forEach((cell: any, idx: number) => {
+        const header = headers[idx]
+        if (header) obj[header] = cell ? cell.v : null
+      })
+      return obj
     })
-    return obj
-  })
+  } catch (e) {
+    console.warn(`Failed to fetch sheet "${sheetName}":`, e)
+    return []
+  }
 }
 
 export default async function fetchIndicatorData() {
@@ -56,6 +66,8 @@ export default async function fetchIndicatorData() {
   if (cachedResult && (now - lastFetchTime < CACHE_DURATION)) {
     return cachedResult
   }
+
+  try {
 
   const [housingData, infraData] = await Promise.all([
     readGoogleSheet(SPREADSHEET_ID, 'Revenue/Housing'),
@@ -115,14 +127,12 @@ export default async function fetchIndicatorData() {
 
   const housingYears = [...new Set(allYears)].sort()
 
-  const result = {
-    housingRows,
-    housingYears,
-    infraRows,
+    const result = { housingRows, housingYears, infraRows }
+    cachedResult = result
+    lastFetchTime = now
+    return result
+  } catch (e) {
+    console.warn('fetchIndicatorData failed:', e)
+    return { housingRows: [], housingYears: [], infraRows: [] }
   }
-
-  cachedResult = result
-  lastFetchTime = now
-
-  return result
 }

@@ -1,20 +1,20 @@
 import { useMemo } from 'react'
 import { CalendarRange } from 'lucide-react'
-import { cn } from '../lib/shadcn/utils'
 
-const TEAL = '#0e7490'
+const CYAN = '#00a3b4'
 
-function FilterButton({
+function RetoolFilterButton({
   label, active, onClick,
 }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      style={active ? { backgroundColor: TEAL, borderColor: TEAL, color: '#fff' } : undefined}
-      className={cn(
-        'px-3 py-1.5 rounded-md text-sm font-medium transition-colors border',
-        active ? '' : 'bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-      )}
+      style={active ? { backgroundColor: CYAN, borderColor: CYAN, color: '#ffffff' } : undefined}
+      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
+        active
+          ? 'shadow-md shadow-cyan-900/20'
+          : 'bg-[#182029] text-gray-300 border-[#2c3746] hover:border-gray-500 hover:text-white'
+      }`}
     >
       {label}
     </button>
@@ -40,7 +40,7 @@ export function QuarterFilter({
 }: QuarterFilterProps) {
   
   const years = useMemo(() => {
-    if (!Array.isArray(allQuarters) || allQuarters.length === 0) return []
+    if (!Array.isArray(allQuarters) || allQuarters.length === 0) return ['2025', '2026']
     
     const extractedYears = allQuarters
       .map(q => {
@@ -50,53 +50,49 @@ export function QuarterFilter({
       })
       .filter((y): y is string => y !== null)
 
-    return [...new Set(extractedYears)].sort()
+    const uniqueYears = [...new Set(extractedYears)].sort()
+    return uniqueYears.length > 0 ? uniqueYears : ['2025', '2026']
   }, [allQuarters])
 
-  const quartersForYear = useMemo(() => {
-    if (!selectedYear || !Array.isArray(allQuarters)) return []
-    return allQuarters.filter(q => q && q.includes(selectedYear))
-  }, [allQuarters, selectedYear])
+  const quartersList = ['all', 'Q1', 'Q2', 'Q3', 'Q4']
 
   return (
-    <div className="flex items-center gap-4 flex-wrap">
+    <div className="flex items-center gap-4 flex-wrap text-white text-xs">
       {/* Year selector */}
-      <div className="flex items-center gap-1.5">
-        <CalendarRange className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-medium text-muted-foreground mr-1">Target Year:</span>
-        {years.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">No years available</span>
-        ) : (
-          years.map(y => (
-            <FilterButton key={y} label={y} active={selectedYear === y} onClick={() => onYearChange(y)} />
-          ))
-        )}
+      <div className="flex items-center gap-2">
+        <CalendarRange className="w-4 h-4 text-cyan-400" />
+        <span className="font-semibold text-gray-300">Target Year:</span>
+        <div className="flex items-center gap-1.5">
+          {years.map(y => (
+            <RetoolFilterButton 
+              key={y} 
+              label={y} 
+              active={selectedYear === y} 
+              onClick={() => onYearChange(y)} 
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Divider */}
-      <div className="h-5 w-px bg-border" />
+      {/* Vertical Divider */}
+      <div className="h-4 w-px bg-[#2c3746]" />
 
       {/* Quarter selector */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm font-medium text-muted-foreground mr-1">{label}</span>
-        <FilterButton
-          label="All"
-          active={selectedQuarter === 'all'}
-          onClick={() => onQuarterChange('all')}
-        />
-        {quartersForYear.map(q => {
-          const qLabel = q.match(/Q[1-4]/i)?.[0]?.toUpperCase() || q
-          
-          return (
-            <FilterButton
+      <div className="flex items-center gap-2">
+        <span className="font-semibold text-gray-300">{label}</span>
+        <div className="flex items-center gap-1.5">
+          {quartersList.map(q => (
+            <RetoolFilterButton
               key={q}
-              label={qLabel}
+              label={q === 'all' ? 'All' : q}
               active={selectedQuarter === q}
               onClick={() => onQuarterChange(q)}
             />
-          )
-        })}
+          ))}
+        </div>
       </div>
+
+
     </div>
   )
 }
