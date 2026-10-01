@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import fetchEconomicVitality from '../backend/getEconomicVitality'
 import fetchIndicatorData from '../backend/getIndicatorData'
-import fetchPermitData from '../backend/getPermitData'
+import fetchPermitData, { type PermitRecord } from '../backend/getPermitData'
 
 // Import UI Sections
 
@@ -22,7 +22,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, Layers } from 'lucide-react'
-import { QuarterFilter } from '../components/QuarterFilter'
+import { DevelopmentFilter } from '../components/DevelopmentFilter'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -32,8 +32,8 @@ interface MajorProject {
   recordType: string
   recordSubtype: string
   valuation: number
-  acceptedDate: string
-  issuedDate: string
+  acceptedDate: string | null
+  issuedDate: string | null
   daysToIssue: number | null
 }
 
@@ -234,23 +234,24 @@ export default function DevMetricsDashboard() {
   const [indicatorData, setIndicatorData] = useState<any>(null)
   const [vitalityData, setVitalityData] = useState<any>(null)
 
-  const [selectedYear, setSelectedYear] = useState('2026')
+  const [selectedYear, setSelectedYear] = useState('all')
   const [selectedQuarter, setSelectedQuarter] = useState('all')
+  const [selectedType, setSelectedType] = useState('all')
   const [activeTab, setActiveTab] = useState<'permits' | 'turnaround' | 'major'>('permits')
 
   async function loadData() {
     setLoading(true)
     try {
-      const [permits, indicators, vitality] = await Promise.all([
+      const results = await Promise.allSettled([
         fetchPermitData(),
         fetchIndicatorData(),
         fetchEconomicVitality()
       ])
-      setPermitData(permits)
-      setIndicatorData(indicators)
-      setVitalityData(vitality)
+      if (results[0].status === 'fulfilled') setPermitData(results[0].value)
+      if (results[1].status === 'fulfilled') setIndicatorData(results[1].value)
+      if (results[2].status === 'fulfilled') setVitalityData(results[2].value)
     } catch (e) {
-      console.error('Failed to load Google Sheet data:', e)
+      console.error('Failed to load data:', e)
     } finally {
       setLoading(false)
     }
@@ -260,43 +261,95 @@ export default function DevMetricsDashboard() {
     loadData()
   }, [])
 
-  const allQuarterStats: QuarterStat[] = useMemo(() => permitData?.quarterStats ?? [], [permitData])
-  const allMajorProjects: MajorProject[] = useMemo(() => permitData?.majorProjects ?? [], [permitData])
+  const rawPermits: PermitRecord[] = useMemo(() => permitData?.rawPermits ?? [], [permitData])
+  const availableSubtypes: string[] = useMemo(() => permitData?.availableSubtypes ?? [], [permitData])
+  const permitQuarters: string[] = useMemo(() => permitData?.allQuarters ?? [], [permitData])
 
-  const permitQuarters = useMemo(() => allQuarterStats.map(q => q.quarter), [allQuarterStats])
+  const filteredPermits = useMemo(() => {
+    return rawPermits.filter(p => {
+      // Type filter (Commercial vs Residential vs All)
+      if (selectedType !== 'all' && p.recordType !== selectedType) return false
 
-  const activeStats: QuarterStat | null = useMemo(() => {
-    if (selectedQuarter === 'all') return null
-    return allQuarterStats.find(q => q.quarter === selectedQuarter) ?? null
-  }, [selectedQuarter, allQuarterStats])
+      // Year filter: match primary reporting year (p.year)
+      const isYearAll = !selectedYear || selectedYear.toLowerCase() === 'all'
+      if (!isYearAll && p.year !== selectedYear) return false
 
-  const yearQuarterStats = useMemo(
-    () => allQuarterStats.filter(q => q.quarter.endsWith(selectedYear)),
-    [allQuarterStats, selectedYear]
-  )
+      // Quarter filter: match primary reporting quarter (p.quarter)
+      const isQuarterAll = !selectedQuarter || selectedQuarter.toLowerCase() === 'all'
+      if (!isQuarterAll && !p.quarter.toLowerCase().includes(selectedQuarter.toLowerCase())) return false
 
-  const filteredProjects: MajorProject[] = useMemo(() => {
-    if (selectedQuarter === 'all') return allMajorProjects.filter(p => p.quarter.endsWith(selectedYear))
-    return allMajorProjects.filter(p => p.quarter === selectedQuarter)
-  }, [selectedQuarter, selectedYear, allMajorProjects])
+      return true
+    })
+  }, [rawPermits, selectedType, selectedYear, selectedQuarter])
 
-  const kpiMedianDays = selectedQuarter === 'all'
-    ? (() => {
-        const totalPermits = yearQuarterStats.reduce((s, q) => s + q.commercial, 0)
-        const weighted = yearQuarterStats.reduce((s, q) => s + q.medianDays * q.commercial, 0)
-        return `${totalPermits > 0 ? Math.round((weighted / totalPermits) * 10) / 10 : 0} days`
-      })()
-    : `${activeStats?.medianDays ?? 0} days`
+  const kpiMedianDays = useMemo(() => {
+    const daysList = filteredPermits
+      .map(p => p.daysToIssue)
+      .filter((d): d is number => d != null && !isNaN(d))
+      .sort((a, b) => a - b)
 
-  const kpiQueue = selectedQuarter === 'all'
-    ? yearQuarterStats.reduce((s, q) => s + q.queueCount, 0)
-    : activeStats?.queueCount ?? 0
+    if (daysList.length === 0) return '0 days'
+    const mid = Math.floor(daysList.length / 2)
+    const median = daysList.length % 2 !== 0
+      ? daysList[mid]
+      : (daysList[mid - 1] + daysList[mid]) / 2
+    return `${Math.round(median * 10) / 10} days`
+  }, [filteredPermits])
+
+  const kpiQueue = useMemo(() => {
+    return filteredPermits.filter(p => 
+      p.recordStatus === 'In Queue' || p.recordStatus === 'Under Review' || p.recordStatus === 'Accepted'
+    ).length
+  }, [filteredPermits])
+
+  const filteredProjects = useMemo(() => {
+    return filteredPermits
+      .filter(p => p.valuation >= 1000000)
+      .sort((a, b) => b.valuation - a.valuation)
+  }, [filteredPermits])
 
   const kpiMajorCount = filteredProjects.length
-  const kpiMajorValue = filteredProjects.reduce((s, p) => s + p.valuation, 0)
-  const kpiTotalPermits = selectedQuarter === 'all'
-    ? yearQuarterStats.reduce((s, q) => s + q.total, 0)
-    : activeStats?.total ?? 0
+  const kpiMajorValue = useMemo(() => filteredProjects.reduce((s, p) => s + p.valuation, 0), [filteredProjects])
+  const kpiTotalPermits = filteredPermits.length
+  const kpiTotalValuation = useMemo(() => filteredPermits.reduce((s, p) => s + p.valuation, 0), [filteredPermits])
+
+  const yearQuarterStats = useMemo(() => {
+    const qMap: Record<string, { quarter: string; commercial: number; residential: number; total: number; days: number[]; majorValue: number }> = {}
+
+    filteredPermits.forEach(p => {
+      if (!p.quarter) return
+      if (!qMap[p.quarter]) {
+        qMap[p.quarter] = { quarter: p.quarter, commercial: 0, residential: 0, total: 0, days: [], majorValue: 0 }
+      }
+      const item = qMap[p.quarter]
+      item.total += 1
+      if (p.recordType === 'Commercial') item.commercial += 1
+      if (p.recordType === 'Residential') item.residential += 1
+      if (p.daysToIssue != null) item.days.push(p.daysToIssue)
+      if (p.valuation >= 1000000) item.majorValue += p.valuation
+    })
+
+    return Object.values(qMap)
+      .map(q => {
+        const sortedDays = q.days.sort((a, b) => a - b)
+        const mid = Math.floor(sortedDays.length / 2)
+        const medianDays = sortedDays.length === 0 ? 0 : (sortedDays.length % 2 !== 0 ? sortedDays[mid] : (sortedDays[mid - 1] + sortedDays[mid]) / 2)
+        return {
+          quarter: q.quarter,
+          commercial: q.commercial,
+          residential: q.residential,
+          total: q.total,
+          medianDays: Math.round(medianDays * 10) / 10,
+          majorValue: q.majorValue,
+        }
+      })
+      .sort((a, b) => {
+        const ya = a.quarter.match(/\b(20\d{2})\b/)?.[1] ?? ''
+        const yb = b.quarter.match(/\b(20\d{2})\b/)?.[1] ?? ''
+        if (ya !== yb) return ya.localeCompare(yb)
+        return a.quarter.localeCompare(b.quarter)
+      })
+  }, [filteredPermits])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -306,7 +359,7 @@ export default function DevMetricsDashboard() {
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white leading-tight">Mesa County Economic Profile</h1>
             <p className="text-xs mt-0.5 text-white/80">
-              Mesa County regional data · live Google Sheets endpoint
+              Mesa County regional data · ArcGIS REST service & Google Sheets endpoints
             </p>
           </div>
           <button
@@ -326,15 +379,17 @@ export default function DevMetricsDashboard() {
           <SectionHeader
             icon={ClipboardList}
             title="Development Process Metrics"
-            description="Tracks the speed and volume of commercial building permit activity in Mesa County."
+            description="Tracks total permit volumes, turnaround speed, and major project activity in Mesa County."
           />
 
-          <QuarterFilter
+          <DevelopmentFilter
             allQuarters={permitQuarters}
             selectedYear={selectedYear}
             selectedQuarter={selectedQuarter}
+            selectedType={selectedType}
             onYearChange={setSelectedYear}
             onQuarterChange={setSelectedQuarter}
+            onTypeChange={setSelectedType}
           />
 
           {/* KPI Cards */}
@@ -342,53 +397,43 @@ export default function DevMetricsDashboard() {
             <StatCard
               title="Median Time to Permit"
               value={kpiMedianDays}
-              sub={selectedQuarter === 'all' ? `Weighted avg in ${selectedYear}` : `Median for ${selectedQuarter}`}
+              sub={selectedQuarter === 'all' ? (selectedYear === 'all' ? 'Overall median turnaround' : `Median in ${selectedYear}`) : `Median for ${selectedQuarter}`}
               icon={Clock}
               accent="bg-[#e4808c]/30 text-white"
             />
             <StatCard
               title="Projects in Queue"
-              value={kpiQueue}
-              sub="Awaiting issuance"
+              value={kpiQueue.toLocaleString()}
+              sub="Under review / pending"
               icon={ListFilter}
               accent="bg-[#e4808c]/30 text-white"
             />
             <StatCard
               title="Major Projects (≥ $1M)"
               value={kpiMajorCount}
-              sub={`${kpiTotalPermits.toLocaleString()} total permits`}
+              sub="Valuation ≥ $1,000,000"
               icon={Building2}
               accent="bg-[#e4808c]/30 text-white"
             />
             <StatCard
               title="Major Projects Value"
               value={formatCompact(kpiMajorValue)}
-              sub="Combined estimated value"
+              sub="Combined major valuation"
               icon={DollarSign}
               accent="bg-[#e4808c]/30 text-white"
             />
             <StatCard
-              title="Housing Permits Issued"
-              value={(() => {
-                const rows: any[] = indicatorData?.housingRows ?? []
-                const yr = rows.filter((r: any) => r.year === selectedYear)
-                const row = selectedQuarter === 'all' ? yr[yr.length - 1] : yr.find((r: any) => r.quarter?.includes(selectedQuarter))
-                return row?.housingPermitsIssued != null ? row.housingPermitsIssued.toLocaleString() : '—'
-              })()}
-              sub="Residential permits"
+              title="Total Permits"
+              value={kpiTotalPermits.toLocaleString()}
+              sub={selectedType === 'all' ? 'Commercial & Residential' : selectedType}
               icon={Home}
               accent="bg-[#e4808c]/30 text-white"
             />
             <StatCard
-              title="Multifamily Units"
-              value={(() => {
-                const rows: any[] = indicatorData?.housingRows ?? []
-                const yr = rows.filter((r: any) => r.year === selectedYear)
-                const row = selectedQuarter === 'all' ? yr[yr.length - 1] : yr.find((r: any) => r.quarter?.includes(selectedQuarter))
-                return row?.multifamilyUnits != null ? row.multifamilyUnits.toLocaleString() : '—'
-              })()}
-              sub="Under construction"
-              icon={Layers}
+              title="Total Permit Valuation"
+              value={formatCompact(kpiTotalValuation)}
+              sub="Full dataset valuation"
+              icon={TrendingUp}
               accent="bg-[#e4808c]/30 text-white"
             />
           </div>
@@ -481,7 +526,7 @@ export default function DevMetricsDashboard() {
             title="Infrastructure & Capacity"
             description="Highlights the status of major public infrastructure investments and shovel-ready land opportunities."
           />
-          <InfraSection rows={indicatorData?.infraRows ?? []} />
+          <InfraSection rows={indicatorData?.infraRows ?? []} loading={loading} />
         </div>
 
         {/* Section 5: Fiscal & Activity Signals */}

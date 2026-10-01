@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 export function useSectionFilter(allQuarters: string[]) {
-  const [selectedYear, setSelectedYear] = useState('2026')
+  const [selectedYear, setSelectedYear] = useState('all')
   const [selectedQuarter, setSelectedQuarter] = useState('all')
 
   const handleYearChange = (year: string) => {

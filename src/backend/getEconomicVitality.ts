@@ -233,9 +233,9 @@ export default async function fetchEconomicVitality() {
     }))
 
     const allYears = [...new Set([
-      ...wages.map(w => w.year),
-      ...discouraged.map(d => d.year),
-      ...growth.map(g => g.year),
+      ...wages.map((w: any) => w.year),
+      ...discouraged.map((d: any) => d.year),
+      ...growth.map((g: any) => g.year),
       ...Object.keys(laborMap).map(k => k.split(' ')[0]!)
     ])].filter(y => parseInt(y) >= 2025).sort()
 
@@ -245,9 +245,9 @@ export default async function fetchEconomicVitality() {
     allYears.forEach(y => {
       quarters.forEach(q => {
         const key = `${y} ${q}`
-        const wage = wages.find(w => w.year === y && w.quarter === q)
-        const disc = discouraged.find(d => d.year === y && d.quarter === q)
-        const gro = growth.find(g => g.year === y && g.quarter === q)
+        const wage = wages.find((w: any) => w.year === y && w.quarter === q)
+        const disc = discouraged.find((d: any) => d.year === y && d.quarter === q)
+        const gro = growth.find((g: any) => g.year === y && g.quarter === q)
         
         const lab = laborMap[key] ? laborMap[key].sum / laborMap[key].count : null
         const emp = employedMap[key] ? employedMap[key].sum / employedMap[key].count : null
@@ -296,4 +296,4 @@ export default async function fetchEconomicVitality() {
     lastVitalityFetchTime = now
     return result
   }
-}
+}

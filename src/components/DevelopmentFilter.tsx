@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, Building2, Layers } from 'lucide-react'
 
 const CYAN = '#00838f'
 
@@ -21,24 +21,26 @@ function RetoolFilterButton({
   )
 }
 
-export interface QuarterFilterProps {
+export interface DevelopmentFilterProps {
   allQuarters: string[]
   selectedYear: string
   selectedQuarter: string
+  selectedType: string
   onYearChange: (y: string) => void
   onQuarterChange: (q: string) => void
-  label?: string
+  onTypeChange: (t: string) => void
 }
 
-export function QuarterFilter({
+export function DevelopmentFilter({
   allQuarters = [],
   selectedYear,
   selectedQuarter,
+  selectedType,
   onYearChange,
   onQuarterChange,
-  label = 'Target Quarter:',
-}: QuarterFilterProps) {
-  
+  onTypeChange,
+}: DevelopmentFilterProps) {
+
   const years = useMemo(() => {
     let extractedYears: string[] = []
     if (Array.isArray(allQuarters) && allQuarters.length > 0) {
@@ -48,11 +50,10 @@ export function QuarterFilter({
     }
 
     const uniqueYears = [...new Set(extractedYears)].sort()
-    const baseYears = uniqueYears.length > 0 ? uniqueYears : ['2025', '2026', '2027']
+    const baseYears = uniqueYears.length > 0 ? uniqueYears : ['2024', '2025', '2026']
     return ['all', ...baseYears]
   }, [allQuarters])
 
-  // Filter quarters available for the selected year
   const quartersList = useMemo(() => {
     if (!Array.isArray(allQuarters) || allQuarters.length === 0) return ['all', 'Q1', 'Q2', 'Q3', 'Q4']
     
@@ -69,9 +70,11 @@ export function QuarterFilter({
     return uniqueQ.length > 0 ? ['all', ...uniqueQ] : ['all', 'Q1', 'Q2', 'Q3', 'Q4']
   }, [allQuarters, selectedYear])
 
+  const typesList = ['all', 'Commercial', 'Residential']
+
   return (
-    <div className="flex items-center gap-4 flex-wrap text-white text-xs">
-      {/* Year selector */}
+    <div className="flex items-center gap-4 flex-wrap text-white text-xs py-2">
+      {/* Target Year */}
       <div className="flex items-center gap-2">
         <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
         <span className="font-semibold text-gray-300">Target Year:</span>
@@ -87,12 +90,12 @@ export function QuarterFilter({
         </div>
       </div>
 
-      {/* Vertical Divider */}
+      {/* Divider */}
       <div className="h-4 w-px bg-[#2c3746]" />
 
-      {/* Quarter selector */}
+      {/* Target Quarter */}
       <div className="flex items-center gap-2">
-        <span className="font-semibold text-gray-300">{label}</span>
+        <span className="font-semibold text-gray-300">Target Quarter:</span>
         <div className="flex items-center gap-1.5">
           {quartersList.map(q => (
             <RetoolFilterButton
@@ -100,6 +103,25 @@ export function QuarterFilter({
               label={q === 'all' ? 'All' : q}
               active={selectedQuarter === q}
               onClick={() => onQuarterChange(q)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-4 w-px bg-[#2c3746]" />
+
+      {/* Project Type */}
+      <div className="flex items-center gap-2">
+        <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+        <span className="font-semibold text-gray-300">Type:</span>
+        <div className="flex items-center gap-1.5">
+          {typesList.map(t => (
+            <RetoolFilterButton
+              key={t}
+              label={t === 'all' ? 'All Types' : t}
+              active={selectedType === t}
+              onClick={() => onTypeChange(t)}
             />
           ))}
         </div>
