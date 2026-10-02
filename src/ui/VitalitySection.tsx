@@ -11,6 +11,7 @@ import {
 import { QuarterFilter } from '../components/QuarterFilter'
 
 const CYAN = '#023e52'
+const TEAL = '#023e52'
 const CHART_CYAN = '#38bdf8'
 const PINK = '#ee8290'
 const SLATE = '#94a3b8'
@@ -398,16 +399,20 @@ export default function VitalitySection({
   return (
     <div className="space-y-6 text-white my-6">
       {/* Header & Description */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
-            <h2 className="text-xl font-bold tracking-tight text-white">Economic Vitality Indicators</h2>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div
+            className="flex items-center justify-center w-10 h-10 rounded-xl shrink-0"
+            style={{ backgroundColor: `${TEAL}18`, color: TEAL }}
+          >
+            <TrendingUp className="w-5 h-5" />
           </div>
-          <p className="text-xs text-gray-300 mt-1 max-w-4xl leading-relaxed">
-            Key labor market indicators reflecting Mesa County's employment landscape, workforce participation, job creation, and wage trends relative to state benchmarks.
-          </p>
+          <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground">Economic Vitality Indicators</h2>
+          <div className="flex-1 h-px bg-border" />
         </div>
+        <p className="text-sm text-muted-foreground leading-relaxed pl-[52px]">
+          Key labor market indicators reflecting Mesa County's employment landscape, workforce participation, job creation, and wage trends relative to state benchmarks.
+        </p>
       </div>
 
       {/* Filter Bar */}
