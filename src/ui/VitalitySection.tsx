@@ -10,10 +10,11 @@ import {
 
 import { QuarterFilter } from '../components/QuarterFilter'
 
-const CYAN = '#00a3b4'
+const CYAN = '#023e52'
+const CHART_CYAN = '#38bdf8'
 const PINK = '#ee8290'
-const SLATE = '#64748b'
-const CARD_BG = '#0e4a57'
+const SLATE = '#94a3b8'
+const CARD_BG = '#023e52'
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
@@ -453,11 +454,11 @@ export default function VitalitySection({
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
           <h3 className="text-base font-bold text-white">Economic Breakdown</h3>
-          <div className="bg-[#182029] border border-[#2c3746] p-1 rounded-xl flex items-center gap-1">
+          <div className="bg-[#012531] border border-[#045975] p-1 rounded-xl flex items-center gap-1">
             <button
               onClick={() => setActiveTab('wages')}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'wages' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+                activeTab === 'wages' ? 'bg-white text-[#023e52] font-bold shadow' : 'text-gray-300 hover:text-white'
               }`}
             >
               Wages
@@ -465,7 +466,7 @@ export default function VitalitySection({
             <button
               onClick={() => setActiveTab('employed')}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'employed' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+                activeTab === 'employed' ? 'bg-white text-[#023e52] font-bold shadow' : 'text-gray-300 hover:text-white'
               }`}
             >
               Employed
@@ -473,7 +474,7 @@ export default function VitalitySection({
             <button
               onClick={() => setActiveTab('unemployed')}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'unemployed' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+                activeTab === 'unemployed' ? 'bg-white text-[#023e52] font-bold shadow' : 'text-gray-300 hover:text-white'
               }`}
             >
               Unemployed
@@ -481,7 +482,7 @@ export default function VitalitySection({
             <button
               onClick={() => setActiveTab('discouraged')}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'discouraged' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+                activeTab === 'discouraged' ? 'bg-white text-[#023e52] font-bold shadow' : 'text-gray-300 hover:text-white'
               }`}
             >
               Discouraged
@@ -489,7 +490,7 @@ export default function VitalitySection({
             <button
               onClick={() => setActiveTab('growth')}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                activeTab === 'growth' ? 'bg-[#2a3443] text-white shadow' : 'text-gray-400 hover:text-white'
+                activeTab === 'growth' ? 'bg-white text-[#023e52] font-bold shadow' : 'text-gray-300 hover:text-white'
               }`}
             >
               Job Growth
@@ -499,22 +500,22 @@ export default function VitalitySection({
 
         {/* Tab 1: Wages */}
         {activeTab === 'wages' && (
-          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+          <div className="rounded-2xl p-6 shadow-xl border border-[#045975]" style={{ backgroundColor: CARD_BG }}>
             <div className="flex items-center gap-2 mb-4">
-              <DollarSign className="w-4 h-4 text-cyan-400" />
+              <DollarSign className="w-4 h-4 text-cyan-300" />
               <h4 className="text-sm font-bold text-white">Avg. Weekly Wage Comparison (YoY)</h4>
             </div>
             <ResponsiveContainer width="100%" height={340}>
               <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" vertical={false} />
                 <XAxis 
                   dataKey="quarter" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                  axisLine={{ stroke: '#2a3443' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
+                  axisLine={{ stroke: '#045975' }} 
                   tickLine={false} 
                 />
                 <YAxis 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   axisLine={false} 
                   tickLine={false} 
                   tickFormatter={(v) => `$${v}`} 
@@ -526,9 +527,9 @@ export default function VitalitySection({
                   type="monotone"
                   dataKey="wage_2025"
                   name="Year 2025"
-                  stroke={CYAN}
+                  stroke={CHART_CYAN}
                   strokeWidth={2.5}
-                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  dot={{ r: 5, fill: CHART_CYAN, stroke: CHART_CYAN }}
                   connectNulls
                 />
                 <Line
@@ -542,28 +543,28 @@ export default function VitalitySection({
                 />
               </LineChart>
             </ResponsiveContainer>
-            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+            <RetoolLegend items={[{ label: 'Year 2025', color: CHART_CYAN }, { label: 'Year 2026', color: PINK }]} />
           </div>
         )}
 
         {/* Tab 2: Employed */}
         {activeTab === 'employed' && (
-          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+          <div className="rounded-2xl p-6 shadow-xl border border-[#045975]" style={{ backgroundColor: CARD_BG }}>
             <div className="flex items-center gap-2 mb-4">
-              <UserCheck className="w-4 h-4 text-cyan-400" />
+              <UserCheck className="w-4 h-4 text-cyan-300" />
               <h4 className="text-sm font-bold text-white">Employed Workers Comparison (YoY)</h4>
             </div>
             <ResponsiveContainer width="100%" height={340}>
               <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" vertical={false} />
                 <XAxis 
                   dataKey="quarter" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                  axisLine={{ stroke: '#2a3443' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
+                  axisLine={{ stroke: '#045975' }} 
                   tickLine={false} 
                 />
                 <YAxis 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   axisLine={false} 
                   tickLine={false} 
                   tickFormatter={(v) => formatNumber(v)} 
@@ -575,9 +576,9 @@ export default function VitalitySection({
                   type="monotone"
                   dataKey="employed_2025"
                   name="Year 2025"
-                  stroke={CYAN}
+                  stroke={CHART_CYAN}
                   strokeWidth={2.5}
-                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  dot={{ r: 5, fill: CHART_CYAN, stroke: CHART_CYAN }}
                   connectNulls
                 />
                 <Line
@@ -591,28 +592,28 @@ export default function VitalitySection({
                 />
               </LineChart>
             </ResponsiveContainer>
-            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+            <RetoolLegend items={[{ label: 'Year 2025', color: CHART_CYAN }, { label: 'Year 2026', color: PINK }]} />
           </div>
         )}
 
         {/* Tab 3: Unemployed */}
         {activeTab === 'unemployed' && (
-          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+          <div className="rounded-2xl p-6 shadow-xl border border-[#045975]" style={{ backgroundColor: CARD_BG }}>
             <div className="flex items-center gap-2 mb-4">
-              <UserMinus className="w-4 h-4 text-cyan-400" />
+              <UserMinus className="w-4 h-4 text-cyan-300" />
               <h4 className="text-sm font-bold text-white">Unemployed Workers Comparison (YoY)</h4>
             </div>
             <ResponsiveContainer width="100%" height={340}>
               <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" vertical={false} />
                 <XAxis 
                   dataKey="quarter" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                  axisLine={{ stroke: '#2a3443' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
+                  axisLine={{ stroke: '#045975' }} 
                   tickLine={false} 
                 />
                 <YAxis 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   axisLine={false} 
                   tickLine={false} 
                   tickFormatter={(v) => formatNumber(v)} 
@@ -624,9 +625,9 @@ export default function VitalitySection({
                   type="monotone"
                   dataKey="unemployed_2025"
                   name="Unemployed (2025)"
-                  stroke={CYAN}
+                  stroke={CHART_CYAN}
                   strokeWidth={2.5}
-                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  dot={{ r: 5, fill: CHART_CYAN, stroke: CHART_CYAN }}
                   connectNulls
                 />
                 <Line
@@ -640,31 +641,31 @@ export default function VitalitySection({
                 />
               </LineChart>
             </ResponsiveContainer>
-            <RetoolLegend items={[{ label: 'Year 2025', color: CYAN }, { label: 'Year 2026', color: PINK }]} />
+            <RetoolLegend items={[{ label: 'Year 2025', color: CHART_CYAN }, { label: 'Year 2026', color: PINK }]} />
           </div>
         )}
 
         {/* Tab 4: Discouraged */}
         {activeTab === 'discouraged' && (
-          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+          <div className="rounded-2xl p-6 shadow-xl border border-[#045975]" style={{ backgroundColor: CARD_BG }}>
             <div className="flex items-center gap-2 mb-1">
               <UserMinus className="w-4 h-4 text-orange-400" />
               <h4 className="text-sm font-bold text-white">Discouraged Workers Comparison (YoY)</h4>
             </div>
-            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+            <p className="text-xs text-gray-300 mb-4 leading-relaxed">
               People who are able to work but who have not recieved or taken a job offer within a year of unemployment are considered "discouraged" workforce.
             </p>
             <ResponsiveContainer width="100%" height={340}>
               <LineChart data={comparisonData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" vertical={false} />
                 <XAxis 
                   dataKey="quarter" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                  axisLine={{ stroke: '#2a3443' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
+                  axisLine={{ stroke: '#045975' }} 
                   tickLine={false} 
                 />
                 <YAxis 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   axisLine={false} 
                   tickLine={false} 
                   tickFormatter={(v) => formatNumber(v)} 
@@ -685,25 +686,25 @@ export default function VitalitySection({
                   type="monotone"
                   dataKey="discouraged_2026"
                   name="Year 2026"
-                  stroke={CYAN}
+                  stroke={CHART_CYAN}
                   strokeWidth={2.5}
-                  dot={{ r: 5, fill: CYAN, stroke: CYAN }}
+                  dot={{ r: 5, fill: CHART_CYAN, stroke: CHART_CYAN }}
                   connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
-            <RetoolLegend items={[{ label: 'Year 2025', color: SLATE }, { label: 'Year 2026', color: CYAN }]} />
+            <RetoolLegend items={[{ label: 'Year 2025', color: SLATE }, { label: 'Year 2026', color: CHART_CYAN }]} />
           </div>
         )}
 
         {/* Tab 5: Job Growth */}
         {activeTab === 'growth' && (
-          <div className="bg-[#181e26] border border-[#28323f] rounded-2xl p-6 shadow-xl">
+          <div className="rounded-2xl p-6 shadow-xl border border-[#045975]" style={{ backgroundColor: CARD_BG }}>
             <div className="flex items-center gap-2 mb-1">
-              <Briefcase className="w-4 h-4 text-cyan-400" />
+              <Briefcase className="w-4 h-4 text-cyan-300" />
               <h4 className="text-sm font-bold text-white">Net Job Growth by Year & Quarter</h4>
             </div>
-            <p className="text-xs text-gray-400 mb-6">
+            <p className="text-xs text-gray-300 mb-6">
               Employment change compared to the same quarter in previous year
             </p>
             <ResponsiveContainer width="100%" height={360}>
@@ -713,28 +714,28 @@ export default function VitalitySection({
                 margin={{ left: 20, right: 30, top: 10, bottom: 10 }}
                 barSize={32}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a3443" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" horizontal={false} />
                 <XAxis 
                   type="number" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   domain={[-700, 700]}
                   ticks={[-700, -350, 0, 350, 700]}
-                  axisLine={{ stroke: '#2a3443' }}
+                  axisLine={{ stroke: '#045975' }}
                 />
                 <YAxis 
                   type="category" 
                   dataKey="label" 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                  tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.75)' }} 
                   width={90}
-                  axisLine={{ stroke: '#2a3443' }}
+                  axisLine={{ stroke: '#045975' }}
                 />
                 <Tooltip content={<RetoolTooltip />} />
-                <ReferenceLine x={0} stroke="#475569" strokeWidth={1.5} />
+                <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} />
                 <Bar dataKey="jobGrowth" name="Net Job Growth" radius={[2, 2, 2, 2]}>
                   {jobGrowthData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.jobGrowth >= 0 ? CYAN : PINK} 
+                      fill={entry.jobGrowth >= 0 ? CHART_CYAN : PINK} 
                     />
                   ))}
                 </Bar>

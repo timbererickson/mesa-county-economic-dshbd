@@ -1,26 +1,10 @@
+import { fetchInfrastructureProjects, type InfrastructureProject } from './getInfrastructureData'
+
 const SPREADSHEET_ID = '19ywlWoNdEEe8ePps6jzAZfjslB26elJORNVdmw4cKtw'
 
 let cachedResult: any = null
 let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000
-
-const FALLBACK_INFRA = [
-  {
-    projectName: 'Mesa County 32 1/2 Road Phase II Roadway Improvement Project',
-    category: 'Transportation / Roads',
-    summary: 'The project consists of roadway and drainage improvements on 32 1/2 Road from the north side of the Grand Valley Canal to Front Street. The roadway improvements include the removal of existing asphalt mat, construction of new asphalt pavement section, subgrade stabilization, curb and gutter, drainage features, irrigation structures, water main, traffic control, utility relocations, pavement markings, sign installation, and other related items. Project includes widening of 32 1/2 Road from C 1/2 Road to Front street to add a center turn lane, sidewalk and bike lanes.',
-    status: 'Design / Engineering',
-    percentComplete: 0,
-    targetQuarter: 'Q4 2026',
-    reportingQuarter: 'Q4 2026',
-    quarter: 'Q4 2026',
-    year: '2026',
-    milestones: 'RFP issued to Rocky Mountain Bidnet.',
-    shovelReady: '',
-    estimatedBudget: 5500000,
-    timestamp: '1/28/2026 15:47:33',
-  }
-]
 
 const FALLBACK_HOUSING = [
   {
@@ -117,9 +101,9 @@ export default async function fetchIndicatorData() {
   }
 
   try {
-    const [housingData, infraData] = await Promise.all([
+    const [housingData, supabaseInfraProjects] = await Promise.all([
       readGoogleSheet(SPREADSHEET_ID, 'Revenue/Housing'),
-      readGoogleSheet(SPREADSHEET_ID, '730663222'),
+      fetchInfrastructureProjects(),
     ])
 
     let housingRows = housingData
@@ -145,33 +129,7 @@ export default async function fetchIndicatorData() {
         return a.quarter.localeCompare(b.quarter)
       })
 
-    let infraRows = infraData
-      .filter((r: any) => r['Project Name'] || r['Project_Name'] || r['projectName'])
-      .map((r: any) => {
-        const projName = r['Project Name'] || r['Project_Name'] || r['projectName'] || '';
-        const targetVal = String(r['Target Completion Quarter'] || r['Target_Completion_Quarter'] || r['targetQuarter'] || '').trim();
-
-        return {
-          projectName: projName,
-          category: r['Project Category'] ?? r['category'] ?? '',
-          summary: r['Project Summary'] ?? r['summary'] ?? '',
-          status: r['Project Status'] ?? r['status'] ?? '',
-          percentComplete: parseNum(r['Percent Complete (%)'] ?? r['percentComplete']) ?? 0,
-          targetQuarter: targetVal,
-          reportingQuarter: targetVal,
-          quarter: targetVal,
-          year: getYear(targetVal),
-          milestones: r['Status Updates / Milestones'] ?? r['milestones'] ?? '',
-          shovelReady: r['Shovel-Ready Land Availability Highlights'] ?? r['shovelReady'] ?? '',
-          estimatedBudget: parseBudget(r['Estimated Budget ($)'] ?? r['estimatedBudget']),
-          timestamp: r['Timestamp'],
-        }
-      })
-      .sort((a: any, b: any) => a.projectName.localeCompare(b.projectName))
-
-    if (infraRows.length === 0) {
-      infraRows = FALLBACK_INFRA
-    }
+    let infraRows: InfrastructureProject[] = supabaseInfraProjects
 
     if (housingRows.length === 0) {
       housingRows = FALLBACK_HOUSING
@@ -189,11 +147,11 @@ export default async function fetchIndicatorData() {
     lastFetchTime = now
     return result
   } catch (e) {
-    console.warn('fetchIndicatorData failed, using fallback:', e)
+    console.warn('fetchIndicatorData failed, using fallback for housing only:', e)
     const result = {
       housingRows: FALLBACK_HOUSING,
       housingYears: ['2026'],
-      infraRows: FALLBACK_INFRA,
+      infraRows: [],
     }
     cachedResult = result
     lastFetchTime = now

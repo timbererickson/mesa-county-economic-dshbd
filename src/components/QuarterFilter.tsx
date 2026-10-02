@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Calendar } from 'lucide-react'
 
-const CYAN = '#00838f'
+const CYAN = '#023e52'
 
 function RetoolFilterButton({
   label, active, onClick,

@@ -1,0 +1,5 @@
+{
+  "name": "Mesa County Development Metrics",
+  "description": "Comprehensive economic vitality, permitting, infrastructure, and fiscal metrics dashboard for Mesa County.",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

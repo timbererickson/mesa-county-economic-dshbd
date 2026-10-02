@@ -8,7 +8,7 @@ import {
 import { QuarterFilter } from '../components/QuarterFilter'
 import { useSectionFilter } from '../hooks/useSectionFilter'
 
-const TEAL = '#0e7490'
+const TEAL = '#023e52'
 const PINK = '#e4808c'
 
 const formatCurrency = (val: number) =>

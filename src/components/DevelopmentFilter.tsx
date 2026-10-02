@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Calendar, Building2, Layers } from 'lucide-react'
+import { Calendar, Building2 } from 'lucide-react'
+import { PermitSubtypeFilter, type SubtypeOption } from './PermitSubtypeFilter'
 
-const CYAN = '#00838f'
+const CYAN = '#023e52'
 
 function RetoolFilterButton({
   label, active, onClick,
@@ -26,9 +27,12 @@ export interface DevelopmentFilterProps {
   selectedYear: string
   selectedQuarter: string
   selectedType: string
+  subtypeOptions: SubtypeOption[]
+  selectedSubtypes: string[]
   onYearChange: (y: string) => void
   onQuarterChange: (q: string) => void
   onTypeChange: (t: string) => void
+  onSubtypesChange: (subtypes: string[]) => void
 }
 
 export function DevelopmentFilter({
@@ -36,9 +40,12 @@ export function DevelopmentFilter({
   selectedYear,
   selectedQuarter,
   selectedType,
+  subtypeOptions = [],
+  selectedSubtypes = [],
   onYearChange,
   onQuarterChange,
   onTypeChange,
+  onSubtypesChange,
 }: DevelopmentFilterProps) {
 
   const years = useMemo(() => {
@@ -50,7 +57,11 @@ export function DevelopmentFilter({
     }
 
     const uniqueYears = [...new Set(extractedYears)].sort()
-    const baseYears = uniqueYears.length > 0 ? uniqueYears : ['2024', '2025', '2026']
+    const validYears = uniqueYears.filter(y => {
+      const num = parseInt(y, 10)
+      return !isNaN(num) && num >= 2025
+    })
+    const baseYears = validYears.length > 0 ? validYears : ['2025', '2026']
     return ['all', ...baseYears]
   }, [allQuarters])
 
@@ -126,6 +137,20 @@ export function DevelopmentFilter({
           ))}
         </div>
       </div>
+
+      {/* Divider */}
+      <div className="h-4 w-px bg-[#2c3746]" />
+
+      {/* Permit Subtype Filter */}
+      <div className="flex items-center gap-2">
+        <span className="font-semibold text-gray-300">Subtype:</span>
+        <PermitSubtypeFilter
+          options={subtypeOptions}
+          selected={selectedSubtypes}
+          onChange={onSubtypesChange}
+        />
+      </div>
     </div>
   )
 }
+export { type SubtypeOption }
