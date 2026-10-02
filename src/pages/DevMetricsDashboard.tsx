@@ -699,14 +699,14 @@ export default function DevMetricsDashboard() {
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
             <StatCard
-              title="Accepted to Approved"
+              title="Permits Accepted to Approved"
               value={kpiMedianAcceptedToApproved}
               sub={selectedQuarter === 'all' ? (selectedYear === 'all' ? 'Median plan review' : `Median in ${selectedYear}`) : `Median for ${selectedQuarter}`}
               icon={Clock}
               accent="bg-white/15 text-white"
             />
             <StatCard
-              title="Approved to Issuance"
+              title="Permits Approved to Issuance"
               value={kpiMedianApprovedToIssued}
               sub={selectedQuarter === 'all' ? (selectedYear === 'all' ? 'Median issuance turnaround' : `Median in ${selectedYear}`) : `Median for ${selectedQuarter}`}
               icon={Clock}
