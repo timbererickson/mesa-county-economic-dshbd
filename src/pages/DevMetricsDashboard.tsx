@@ -593,16 +593,19 @@ export default function DevMetricsDashboard() {
       {/* Header */}
       <div className="border-b px-6 py-4" style={{ backgroundColor: RED }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white leading-tight">Mesa County Economic Profile</h1>
-            <p className="text-xs mt-0.5 text-white/80 flex items-center gap-2">
-              <span>Mesa County regional data · RTPO Maintstar Service (2025+)</span>
-              {permitData?.source && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/20 text-white">
-                  {permitData.source === 'arcgis' ? 'ArcGIS Live' : 'County Snapshot (2025-2026)'}
-                </span>
-              )}
-            </p>
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/mc-logo-whiteclip.png"
+              alt="Mesa County Logo"
+              className="w-10 h-10 object-contain shrink-0"
+              referrerPolicy="no-referrer"
+            />
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-white leading-tight">Mesa County Economic Profile</h1>
+              <p className="text-xs mt-0.5 text-white/80">
+                Mesa County Jurisdictional Data
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -982,7 +985,7 @@ export default function DevMetricsDashboard() {
           <SectionHeader
             icon={Landmark}
             title="Fiscal & Activity Signals"
-            description="Tracks sales tax collections as a real-time indicator of economic activity and consumer spending across Mesa County."
+            description="Tracks Use Tax, Property Tax, and Sales Tax collections as real-time indicators of economic activity, county revenues, and consumer spending across Mesa County."
           />
           <FiscalSection rows={indicatorData?.housingRows ?? []} />
         </div>
