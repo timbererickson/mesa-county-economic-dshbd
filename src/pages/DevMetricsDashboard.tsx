@@ -595,9 +595,9 @@ export default function DevMetricsDashboard() {
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
           <div className="flex items-center gap-3.5">
             <img
-              src="/mc-logo-whiteclip.png"
+              src="/mc-logo-whiteclip.png?v=2"
               alt="Mesa County Logo"
-              className="w-10 h-10 object-contain shrink-0"
+              className="h-10 w-auto max-w-[48px] object-contain shrink-0"
               referrerPolicy="no-referrer"
             />
             <div>
