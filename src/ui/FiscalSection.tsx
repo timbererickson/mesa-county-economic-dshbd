@@ -21,6 +21,25 @@ import {
 } from '../data/fiscalData2025'
 
 const TEAL = '#023e52'
+const CYAN = '#023e52'
+
+function RetoolFilterButton({
+  label, active, onClick,
+}: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={active ? { backgroundColor: CYAN, borderColor: CYAN, color: '#ffffff' } : undefined}
+      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+        active
+          ? 'shadow-md shadow-cyan-950/40 text-white'
+          : 'bg-[#182029] text-gray-300 border-[#2c3746] hover:border-gray-500 hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-US', {
@@ -107,76 +126,37 @@ export default function FiscalSection({ rows: _rows }: FiscalSectionProps) {
 
   return (
     <div className="space-y-6">
-      {/* Fiscal Quarter Filter & 2025 Notice */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/40 p-3.5 rounded-xl border border-border">
-        {/* Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground mr-1 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-primary" />
-            Fiscal Quarter:
-          </span>
-          <button
-            onClick={() => setSelectedQuarter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selectedQuarter === 'all'
-                ? 'bg-[#023e52] text-white border-[#023e52] shadow-sm'
-                : 'bg-background text-foreground/80 border-border hover:bg-muted'
-            }`}
-          >
-            All 2025
-          </button>
-          <button
-            onClick={() => setSelectedQuarter('Q1')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selectedQuarter === 'Q1'
-                ? 'bg-[#023e52] text-white border-[#023e52] shadow-sm'
-                : 'bg-background text-foreground/80 border-border hover:bg-muted'
-            }`}
-          >
-            Q1 (Jan–Mar)
-          </button>
-          <button
-            onClick={() => setSelectedQuarter('Q2')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selectedQuarter === 'Q2'
-                ? 'bg-[#023e52] text-white border-[#023e52] shadow-sm'
-                : 'bg-background text-foreground/80 border-border hover:bg-muted'
-            }`}
-          >
-            Q2 (Apr–Jun)
-          </button>
-          <button
-            onClick={() => setSelectedQuarter('Q3')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selectedQuarter === 'Q3'
-                ? 'bg-[#023e52] text-white border-[#023e52] shadow-sm'
-                : 'bg-background text-foreground/80 border-border hover:bg-muted'
-            }`}
-          >
-            Q3 (Jul–Sep)
-          </button>
-          <button
-            onClick={() => setSelectedQuarter('Q4')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selectedQuarter === 'Q4'
-                ? 'bg-[#023e52] text-white border-[#023e52] shadow-sm'
-                : 'bg-background text-foreground/80 border-border hover:bg-muted'
-            }`}
-          >
-            Q4 (Oct–Dec)
-          </button>
+      {/* Fiscal Quarter Filter & Year */}
+      <div className="flex items-center gap-4 flex-wrap text-white text-xs py-1">
+        {/* Target Year */}
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+          <span className="font-semibold text-gray-300">Target Year:</span>
+          <div className="flex items-center gap-1.5">
+            <RetoolFilterButton
+              label={FISCAL_YEAR}
+              active={true}
+              onClick={() => {}}
+            />
+          </div>
         </div>
 
-        {/* Year Status Badge */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#023e52]/10 border border-[#023e52]/20 text-[#023e52] font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#023e52] inline-block animate-pulse" />
-            FY {FISCAL_YEAR} (Fiscal Start: Jan 1)
-          </span>
-          <span className="hidden sm:inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            Spreadsheet Verified
-          </span>
+        {/* Divider */}
+        <div className="h-4 w-px bg-[#2c3746]" />
+
+        {/* Target Quarter */}
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-gray-300">Target Quarter:</span>
+          <div className="flex items-center gap-1.5">
+            {(['all', 'Q1', 'Q2', 'Q3', 'Q4'] as const).map(q => (
+              <RetoolFilterButton
+                key={q}
+                label={q === 'all' ? 'All' : q}
+                active={selectedQuarter === q}
+                onClick={() => setSelectedQuarter(q)}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
