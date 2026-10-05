@@ -27,6 +27,8 @@ export interface PermitFetchResult {
   allYears: string[]
   allQuarters: string[]
   source: 'arcgis' | 'snapshot'
+  arcgisError?: string | null
+  totalRecordsLoaded: number
 }
 
 let cachedPermitResult: PermitFetchResult | null = null
@@ -35,72 +37,47 @@ const CACHE_DURATION = 5 * 60 * 1000
 
 const ARCGIS_BASE_URL = 'https://mcgis.mesacounty.us/arcgis/rest/services/RTPO/RTPO_Maintstar_Data/MapServer/0/query'
 
-// Subtypes excluded from the dataview as not indicative of economic status
-export const EXCLUDED_SUBTYPES_LIST = [
-  'Reroof',
-  'Commercial Roof',
-  'Commercial Reroof',
-  'Electrical Service Upgrade',
-  'Mechanical/HVAC',
-  'Basement Finish',
-  'Carport/Patio Cover',
-  'HVAC Equipment',
-  'Addition to Dwelling',
-  'Plumbing',
-  'Residential Remodel/ Addition/ Alteration',
-  'Water Heater Replacement',
-  'Storage/Shelter',
-  'Storage/ Shelter',
-  'Gas Line Repair/Replace',
-  'Other',
-  'Other - See Notes',
-  'Water/Sewer Line Repair/Replacement',
-  'Release of Non Compliance',
-  'Release of Non- Compliance',
-  'Release of Non-Compliance',
-  'Electrical Panel Replacement',
-  'Sign',
-  'Sign/Banner Permit',
-  'Fence/ Sign/ Pool',
-  'Fence / Pool',
-  'Fence/Sign/Pool',
-  'EV Charger',
-  'Commercial Solar',
-  'Structure Rewire',
-  'Damage Repair',
-  'EMP',
-  'Service for Booster Box',
-  'Window Replacement',
-  'Window/Door Replacement',
-  'Alarm System',
+// All subtypes are now supported and displayed per GIS layer predefined 2025+ configuration
+export const EXCLUDED_SUBTYPES_LIST: readonly string[] = []
+
+export function isExcludedSubtype(_subtype?: string | undefined | null): boolean {
+  return false
+}
+
+export const RECIPIENT_PENDING_STATUS_PATTERNS = [
+  'info needed',
+  'additional info',
+  'incomplete',
+  'pending payment',
+  'prf due',
+  'revision for review',
+  'hold',
+  'renewal pending',
 ] as const
 
-const EXCLUDED_NORMALIZED_KEYS = new Set(
-  EXCLUDED_SUBTYPES_LIST.map(s => s.toLowerCase().replace(/[^a-z0-9]/g, ''))
-)
-
-export function isExcludedSubtype(subtype: string | undefined | null): boolean {
-  if (!subtype) return false
-  const norm = subtype.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (EXCLUDED_NORMALIZED_KEYS.has(norm)) return true
-  if (norm.includes('commercialroof') || norm.includes('commercialreroof')) return true
-  if (norm.includes('windowdoorreplacement')) return true
-  if (norm.includes('fencesignpool') || norm.includes('fencepool')) return true
-  return false
+export function isRecipientPendingStatus(status: string | undefined | null): boolean {
+  if (!status) return false
+  const s = status.toLowerCase()
+  return RECIPIENT_PENDING_STATUS_PATTERNS.some(pattern => s.includes(pattern))
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function parseDateVal(val: any): { timestamp: number | null; dateStr: string | null; year: number | null; quarter: string | null; month: string | null } {
-  if (!val) return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
+  if (val === null || val === undefined || val === '') {
+    return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
+  }
   let d: Date
   if (typeof val === 'number') {
+    // Esri ArcGIS millisecond timestamp
     d = new Date(val)
   } else {
     const s = String(val).trim()
     if (!s) return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
-    if (/^\d{12,14}$/.test(s)) {
+    if (/^\d{11,14}$/.test(s)) {
       d = new Date(Number(s))
+    } else if (/^\d{9,10}$/.test(s)) {
+      d = new Date(Number(s) * 1000)
     } else {
       d = new Date(s)
     }
@@ -112,12 +89,16 @@ export function parseDateVal(val: any): { timestamp: number | null; dateStr: str
 
   const y = d.getFullYear()
   const qNum = Math.floor(d.getMonth() / 3) + 1
+  const m = d.getMonth()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const dateStr = `${y}-${pad(m + 1)}-${pad(d.getDate())}`
+
   return {
     timestamp: d.getTime(),
-    dateStr: d.toISOString().split('T')[0],
+    dateStr,
     year: y,
     quarter: `Q${qNum}`,
-    month: MONTH_NAMES[d.getMonth()],
+    month: MONTH_NAMES[m],
   }
 }
 
@@ -141,33 +122,25 @@ function parseCsvLine(line: string): string[] {
 }
 
 function getArcGISToken(): string {
-  if (typeof window !== 'undefined') {
-    try {
-      const urlToken = new URLSearchParams(window.location.search).get('token')
-      if (urlToken) return urlToken
-      const stored = localStorage.getItem('arcgis_token') || localStorage.getItem('token')
-      if (stored) return stored
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-  return (import.meta as any).env?.VITE_ARCGIS_TOKEN || ''
+  return (
+    (import.meta as any).env?.VITE_ARCGIS_TOKEN ||
+    (import.meta as any).env?.ARCGIS_TOKEN ||
+    ''
+  )
 }
 
 async function fetchArcGISPermits(): Promise<PermitRecord[]> {
   const token = getArcGISToken()
   let allFeatures: any[] = []
   let offset = 0
-  const limit = 1000
+  const limit = 16000
   let hasMore = true
 
-  // Filter directly at ArcGIS service level:
-  // 1. Only residential and commercial via PermitType field
-  // 2. Application date >= 2025 (orders by ApplicationDate DESC to prioritize 2026 records)
-  const whereClause = "PermitType IN ('Residential', 'Commercial') AND ApplicationDate >= '2025-01-01 00:00:00'"
+  // The GIS layer has predefined queries to support 2025 data and later
+  const whereClause = '1=1'
 
   while (hasMore) {
-    let url = `${ARCGIS_BASE_URL}?where=${encodeURIComponent(whereClause)}&outFields=*&returnGeometry=false&f=json&orderByFields=${encodeURIComponent('ApplicationDate DESC')}&resultOffset=${offset}&resultRecordCount=${limit}`
+    let url = `${ARCGIS_BASE_URL}?where=${encodeURIComponent(whereClause)}&outFields=*&returnGeometry=false&f=json&resultOffset=${offset}&resultRecordCount=${limit}`
     if (token) {
       url += `&token=${encodeURIComponent(token)}`
     }
@@ -177,11 +150,13 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
       credentials: 'include',
     })
     if (!res.ok) {
-      throw new Error(`ArcGIS HTTP error ${res.status}`)
+      throw new Error(`ArcGIS HTTP error ${res.status}: ${res.statusText}`)
     }
     const data: any = await res.json()
     if (data.error) {
-      throw new Error(`ArcGIS error: ${data.error.message || JSON.stringify(data.error)}`)
+      const code = data.error.code ? ` (${data.error.code})` : ''
+      const msg = data.error.message || JSON.stringify(data.error)
+      throw new Error(`ArcGIS Error${code}: ${msg}`)
     }
     const features = data.features || []
     if (features.length === 0) {
@@ -189,10 +164,15 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
     }
 
     allFeatures = allFeatures.concat(features)
+    
+    // Check pagination limits
     if (features.length < limit || data.exceededTransferLimit === false) {
       hasMore = false
     } else {
       offset += limit
+      if (allFeatures.length >= 100000) {
+        break
+      }
     }
   }
 
@@ -201,26 +181,28 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
   for (const f of allFeatures) {
     const a = f.attributes || {}
     
-    // Check permit type - strictly Residential and Commercial (check PermitType first)
-    const rawType = String(a.PermitType || a.Permit_Type || a.Record_Type || a.RecordType || a.ProjectType || '').trim().toLowerCase()
-    let recType: 'Commercial' | 'Residential' | null = null
-    if (rawType.includes('com') || rawType.includes('non-res')) {
+    // Check permit type - Commercial vs Residential
+    const rawType = String(a.PermitType || a.Permit_Type || a.Record_Type || a.RecordType || a.ProjectType || '').trim()
+    const tl = rawType.toLowerCase()
+    let recType: 'Commercial' | 'Residential' = 'Residential'
+    if (tl.includes('com') || tl.includes('non-res') || tl.includes('site plan')) {
       recType = 'Commercial'
-    } else if (rawType.includes('res')) {
+    } else {
       recType = 'Residential'
     }
-    if (!recType) continue
 
-    // Application Date (ApplicationDate / Application_Date / AcceptedDate / AppliedDate)
-    const appRaw = a.ApplicationDate ?? a.Application_Date ?? a.AppliedDate ?? a.Applied_Date ?? a.AcceptedDate ?? a.Accepted_Date ?? a.OpenDate ?? a.Open_Date
+    // Application Date - handle ArcGIS timestamps and date fields
+    const appRaw = a.ApplicationDate ?? a.Application_Date ?? a.AppliedDate ?? a.Applied_Date ?? a.AcceptedDate ?? a.Accepted_Date ?? a.OpenDate ?? a.Open_Date ?? a.DateApplied ?? a.DateAccepted
     const appInfo = parseDateVal(appRaw)
 
-    // Data from ApplicationDate must be 2025 and after
-    if (!appInfo.year || appInfo.year < 2025) continue
+    const accInfo = parseDateVal(a.AcceptedDate ?? a.Accepted_Date ?? a.DateAccepted)
+    const apprInfo = parseDateVal(a.ApprovedDate ?? a.Approved_Date ?? a.DateApproved)
+    const issInfo = parseDateVal(a.IssuedDate ?? a.Issued_Date ?? a.DateIssued)
 
-    const accInfo = parseDateVal(a.AcceptedDate ?? a.Accepted_Date)
-    const apprInfo = parseDateVal(a.ApprovedDate ?? a.Approved_Date)
-    const issInfo = parseDateVal(a.IssuedDate ?? a.Issued_Date)
+    // Primary date representation for year/quarter
+    const primaryInfo = (appInfo.year && appInfo.year >= 2025)
+      ? appInfo
+      : ((accInfo.year && accInfo.year >= 2025) ? accInfo : (issInfo.year && issInfo.year >= 2025 ? issInfo : (appInfo.year ? appInfo : { year: 2025, quarter: 'Q1', month: 'Jan', dateStr: '2025-01-01', timestamp: null })))
 
     const startTs = appInfo.timestamp || accInfo.timestamp
     const endTs = issInfo.timestamp || apprInfo.timestamp
@@ -241,14 +223,13 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
       daysApprovedToIssued = Math.round(((issInfo.timestamp - apprInfo.timestamp) / (1000 * 60 * 60 * 24)) * 10) / 10
     }
 
-    const yr = String(appInfo.year)
-    const qtr = `${appInfo.quarter} ${yr}`
+    const yr = String(primaryInfo.year || 2025)
+    const qtr = `${primaryInfo.quarter || 'Q1'} ${yr}`
 
-    const recordSubtype = a.Record_Subtype || a.RecordSubType || a.Subtype || 'General'
-    if (isExcludedSubtype(recordSubtype)) continue
+    const recordSubtype = a.Record_Subtype || a.RecordSubType || a.Subtype || a.Permit_Subtype || 'General'
 
     records.push({
-      permitNumber: a.Permit_Number || a.PermitNumber || a.HumanName || `PERMIT-${a.OBJECTID}`,
+      permitNumber: a.Permit_Number || a.PermitNumber || a.HumanName || `PERMIT-${a.OBJECTID || records.length + 1}`,
       projectType: a.ProjectType || 'Permitting',
       recordType: recType,
       recordSubtype,
@@ -262,8 +243,8 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
       daysAcceptedToApproved,
       daysApprovedToIssued,
       openYear: yr,
-      openQuarter: appInfo.quarter ?? 'Q1',
-      month: appInfo.month ?? 'Jan',
+      openQuarter: primaryInfo.quarter ?? 'Q1',
+      month: primaryInfo.month ?? 'Jan',
       quarter: qtr,
       year: yr,
       address: a.Address || '',
@@ -274,10 +255,77 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
   return records
 }
 
+// @ts-ignore
+import satsMaintStarCsvUrl from '../data/sats_MaintStar.csv?url'
+
+function robustParseLine(line: string): string[] {
+  let firstCommas: number[] = []
+  let pos = -1
+  for (let k = 0; k < 4; k++) {
+    pos = line.indexOf(",", pos + 1)
+    if (pos === -1) break
+    firstCommas.push(pos)
+  }
+
+  let lastCommas: number[] = []
+  pos = line.length
+  for (let k = 0; k < 5; k++) {
+    pos = line.lastIndexOf(",", pos - 1)
+    if (pos === -1) break
+    lastCommas.unshift(pos)
+  }
+
+  if (firstCommas.length < 4 || lastCommas.length < 5 || firstCommas[3] >= lastCommas[0]) {
+    return line.split(",")
+  }
+
+  const humanName = line.substring(0, firstCommas[0])
+  const projectType = line.substring(firstCommas[0] + 1, firstCommas[1])
+  const recordType = line.substring(firstCommas[1] + 1, firstCommas[2])
+  const recordSubtype = line.substring(firstCommas[2] + 1, firstCommas[3])
+
+  const status = line.substring(lastCommas[0] + 1, lastCommas[1])
+  const acceptedDate = line.substring(lastCommas[1] + 1, lastCommas[2])
+  const approvedDate = line.substring(lastCommas[2] + 1, lastCommas[3])
+  const issuedDate = line.substring(lastCommas[3] + 1, lastCommas[4])
+  const valuation = line.substring(lastCommas[4] + 1)
+
+  const middle = line.substring(firstCommas[3] + 1, lastCommas[0])
+  
+  let address = ""
+  let description = ""
+  if (middle.startsWith("\"")) {
+    const endQuote = middle.indexOf("\"", 1)
+    if (endQuote !== -1) {
+      address = middle.substring(1, endQuote)
+      description = middle.substring(endQuote + 1)
+      if (description.startsWith(",")) {
+        description = description.substring(1)
+      }
+    } else {
+      address = middle
+    }
+  } else {
+    const firstComma = middle.indexOf(",")
+    if (firstComma !== -1) {
+      address = middle.substring(0, firstComma)
+      description = middle.substring(firstComma + 1)
+    } else {
+      address = middle
+    }
+  }
+
+  if (description.startsWith("\"") && description.endsWith("\"")) {
+    description = description.substring(1, description.length - 1)
+  }
+
+  return [humanName, projectType, recordType, recordSubtype, address, description, status, acceptedDate, approvedDate, issuedDate, valuation]
+}
+
 async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
-  const res = await fetch('/data/query-result.csv')
+  const res = await fetch('/data/permit-valuations2.csv')
   if (!res.ok) {
-    throw new Error(`Failed to load /data/query-result.csv: ${res.statusText}`)
+    throw new Error(`Failed to load permit-valuations2.csv: ${res.statusText}`)
   }
   const text = await res.text()
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
@@ -286,48 +334,49 @@ async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
   const records: PermitRecord[] = []
 
   for (let i = 1; i < lines.length; i++) {
-    const f = parseCsvLine(lines[i])
-    if (f.length < 7) continue
+    const r = robustParseLine(lines[i])
+    if (r.length < 11) continue
 
-    // f[2] is RecordType
-    const recTypeRaw = f[2]?.replace(/^"|"$/g, '').trim()
-    let recordType: 'Commercial' | 'Residential' | null = null
-    const tl = recTypeRaw.toLowerCase()
-    if (tl.includes('com') || tl.includes('non-res')) {
+    const permitNumber = r[0]?.trim() || `PERMIT-${i}`
+    const projectType = r[1]?.trim() || 'Permitting'
+    
+    const rawType = String(r[2] || '').trim().toLowerCase()
+    let recordType: 'Commercial' | 'Residential' = 'Residential'
+    if (rawType.includes('com') || rawType.includes('non-res') || rawType.includes('site plan')) {
       recordType = 'Commercial'
-    } else if (tl.includes('res')) {
+    } else {
       recordType = 'Residential'
     }
-    if (!recordType) continue
 
-    // Subtype check
-    const recordSubtype = f[3]?.replace(/^"|"$/g, '').trim() || 'General'
-    if (isExcludedSubtype(recordSubtype)) continue
+    const recordSubtype = r[3]?.trim() || 'General'
+    const address = r[4]?.trim() || ''
+    const description = r[5]?.trim() || ''
+    const recordStatus = r[6]?.trim() || 'Unknown'
 
-    // Application date in this dataset is AcceptedDate (f[f.length - 4])
-    const accDateRaw = f[f.length - 4]?.replace(/^"|"$/g, '').trim()
-    const appInfo = parseDateVal(accDateRaw)
+    // Parse dates
+    const appRaw = r[7]?.trim()
+    const appInfo = parseDateVal(appRaw)
 
-    // Data from ApplicationDate must be 2025 and after
-    if (!appInfo.year || appInfo.year < 2025) continue
-
-    const approvedRaw = f[f.length - 3]?.replace(/^"|"$/g, '').trim()
-    const issuedRaw = f[f.length - 2]?.replace(/^"|"$/g, '').trim()
     const accInfo = appInfo
+
+    const approvedRaw = r[8]?.trim()
     const apprInfo = parseDateVal(approvedRaw)
+
+    const issuedRaw = r[9]?.trim()
     const issInfo = parseDateVal(issuedRaw)
 
-    let daysToIssue: number | null = null
-    const startTs = appInfo.timestamp || accInfo.timestamp
+    // Calculate days metrics
+    const startTs = appInfo.timestamp
     const endTs = issInfo.timestamp || apprInfo.timestamp
+
+    let daysToIssue: number | null = null
     if (startTs && endTs && endTs >= startTs) {
       daysToIssue = Math.round(((endTs - startTs) / (1000 * 60 * 60 * 24)) * 10) / 10
     }
 
-    const accStartTs = accInfo.timestamp || appInfo.timestamp
     let daysAcceptedToApproved: number | null = null
-    if (accStartTs && apprInfo.timestamp && apprInfo.timestamp >= accStartTs) {
-      daysAcceptedToApproved = Math.round(((apprInfo.timestamp - accStartTs) / (1000 * 60 * 60 * 24)) * 10) / 10
+    if (startTs && apprInfo.timestamp && apprInfo.timestamp >= startTs) {
+      daysAcceptedToApproved = Math.round(((apprInfo.timestamp - startTs) / (1000 * 60 * 60 * 24)) * 10) / 10
     }
 
     let daysApprovedToIssued: number | null = null
@@ -335,33 +384,38 @@ async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
       daysApprovedToIssued = Math.round(((issInfo.timestamp - apprInfo.timestamp) / (1000 * 60 * 60 * 24)) * 10) / 10
     }
 
-    const valRaw = f[f.length - 1]?.replace(/^"|"$/g, '').replace(/[$,]/g, '').trim()
+    const valRaw = r[10]?.trim().replace(/[$,]/g, '') || ''
     const valuation = parseFloat(valRaw) || 0
 
-    const yr = String(appInfo.year)
-    const qtr = `${appInfo.quarter} ${yr}`
+    // Primary date representation for year/quarter
+    const primaryInfo = (appInfo.year && appInfo.year >= 2025)
+      ? appInfo
+      : ((apprInfo.year && apprInfo.year >= 2025) ? apprInfo : (issInfo.year && issInfo.year >= 2025 ? issInfo : (appInfo.year ? appInfo : { year: 2025, quarter: 'Q1', month: 'Jan', dateStr: '2025-01-01', timestamp: null })))
+
+    const yr = String(primaryInfo.year || 2025)
+    const qtr = `${primaryInfo.quarter || 'Q1'} ${yr}`
 
     records.push({
-      permitNumber: f[0]?.replace(/^"|"$/g, '').trim() || '',
-      projectType: f[1]?.replace(/^"|"$/g, '').trim() || 'Permitting',
+      permitNumber,
+      projectType,
       recordType,
       recordSubtype,
-      recordStatus: f[f.length - 5]?.replace(/^"|"$/g, '').trim() || 'Unknown',
+      recordStatus,
       valuation,
       applicationDate: appInfo.dateStr,
-      acceptedDate: accInfo.dateStr,
+      acceptedDate: appInfo.dateStr,
       approvedDate: apprInfo.dateStr,
       issuedDate: issInfo.dateStr,
       daysToIssue,
       daysAcceptedToApproved,
       daysApprovedToIssued,
       openYear: yr,
-      openQuarter: appInfo.quarter ?? 'Q1',
-      month: appInfo.month ?? 'Jan',
+      openQuarter: primaryInfo.quarter ?? 'Q1',
+      month: primaryInfo.month ?? 'Jan',
       quarter: qtr,
       year: yr,
-      address: f[4]?.replace(/^"|"$/g, '').trim() || '',
-      description: f.slice(5, f.length - 5).join(', ').replace(/^"|"$/g, '').trim() || '',
+      address,
+      description,
     })
   }
 
@@ -372,35 +426,21 @@ export default async function fetchPermitData(): Promise<PermitFetchResult> {
   const now = Date.now()
 
   if (cachedPermitResult && cachedPermitResult.rawPermits?.length > 0 && (now - lastPermitFetchTime < CACHE_DURATION)) {
-    return {
-      ...cachedPermitResult,
-      rawPermits: cachedPermitResult.rawPermits.filter(p => !isExcludedSubtype(p.recordSubtype)),
-      availableSubtypes: cachedPermitResult.availableSubtypes.filter(st => !isExcludedSubtype(st)),
-    }
+    return cachedPermitResult
   }
 
   let rawPermits: PermitRecord[] = []
-  let source: 'arcgis' | 'snapshot' = 'arcgis'
+  let source: 'arcgis' | 'snapshot' = 'snapshot'
+  let arcgisError: string | null = null
 
-  // Attempt live ArcGIS service query first
+  // Use the local CSV data directly as the primary source for the time being
   try {
-    rawPermits = await fetchArcGISPermits()
-    if (rawPermits.length === 0) {
-      throw new Error('ArcGIS returned 0 records; falling back to snapshot')
-    }
-  } catch (err) {
-    console.info('Using local Mesa County snapshot (query-result.csv) - ArcGIS notice:', (err as any)?.message || err)
-    source = 'snapshot'
-    try {
-      rawPermits = await fetchLocalCsvPermits()
-    } catch (csvErr) {
-      console.error('Failed to load local permit snapshot:', csvErr)
-      rawPermits = []
-    }
+    rawPermits = await fetchLocalCsvPermits()
+  } catch (csvErr: any) {
+    console.error('Failed to load local permit snapshot:', csvErr)
+    arcgisError = csvErr?.message || String(csvErr)
+    rawPermits = []
   }
-
-  // Ensure all excluded non-economic subtypes are filtered out
-  rawPermits = rawPermits.filter(p => !isExcludedSubtype(p.recordSubtype))
 
   const availableSubtypes = [...new Set(rawPermits.map(p => p.recordSubtype).filter(Boolean))].sort()
   
@@ -431,6 +471,8 @@ export default async function fetchPermitData(): Promise<PermitFetchResult> {
     allYears: allYears.length > 0 ? allYears : ['2025', '2026'],
     allQuarters: allQuarters.length > 0 ? allQuarters : ['Q1 2025', 'Q2 2025', 'Q3 2025', 'Q4 2025'],
     source,
+    arcgisError,
+    totalRecordsLoaded: rawPermits.length,
   }
 
   cachedPermitResult = result

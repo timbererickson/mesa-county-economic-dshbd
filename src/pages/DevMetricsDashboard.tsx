@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import fetchEconomicVitality from '../backend/getEconomicVitality'
 import fetchIndicatorData from '../backend/getIndicatorData'
-import fetchPermitData, { type PermitRecord, isExcludedSubtype } from '../backend/getPermitData'
+import fetchPermitData, { type PermitRecord, isExcludedSubtype, isRecipientPendingStatus } from '../backend/getPermitData'
 
 // Import UI Sections
 
@@ -22,7 +22,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, Layers, Key, X } from 'lucide-react'
+import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, Layers, PauseCircle } from 'lucide-react'
 import { DevelopmentFilter, type SubtypeOption } from '../components/DevelopmentFilter'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -301,25 +301,6 @@ export default function DevMetricsDashboard() {
   const [selectedSubtypes, setSelectedSubtypes] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'permits' | 'valuation' | 'major'>('permits')
   const [quarterlyViewMode, setQuarterlyViewMode] = useState<'auto' | 'allQuarters'>('auto')
-  const [showTokenDialog, setShowTokenDialog] = useState(false)
-  const [tokenInput, setTokenInput] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('arcgis_token') || ''
-    }
-    return ''
-  })
-
-  const saveToken = () => {
-    if (typeof window !== 'undefined') {
-      if (tokenInput.trim()) {
-        localStorage.setItem('arcgis_token', tokenInput.trim())
-      } else {
-        localStorage.removeItem('arcgis_token')
-      }
-    }
-    setShowTokenDialog(false)
-    loadData()
-  }
 
   const handleYearChange = (year: string) => {
     setSelectedYear(year)
@@ -355,24 +336,18 @@ export default function DevMetricsDashboard() {
   // 1. Current filter bounds (permits filtered by Year, Quarter, and Type)
   const boundsPermits = useMemo(() => {
     return rawPermits.filter(p => {
-      // Permit type must be Residential or Commercial
-      if (p.recordType !== 'Residential' && p.recordType !== 'Commercial') return false
-
-      // Exclude non-economic subtypes
-      if (isExcludedSubtype(p.recordSubtype)) return false
-
-      // ApplicationDate must be 2025 and after
-      const yrNum = parseInt(p.year, 10)
-      if (isNaN(yrNum) || yrNum < 2025) return false
-
       // Type filter (Commercial vs Residential vs All)
-      if (selectedType !== 'all' && p.recordType !== selectedType) return false
+      if (selectedType !== 'all') {
+        const selNorm = selectedType.toLowerCase()
+        const recNorm = (p.recordType || '').toLowerCase()
+        if (!recNorm.includes(selNorm)) return false
+      }
 
-      // Target Year filter (based on ApplicationDate)
+      // Target Year filter
       const isYearAll = !selectedYear || selectedYear.toLowerCase() === 'all'
       if (!isYearAll && p.year !== selectedYear) return false
 
-      // Target Quarter filter (based on ApplicationDate)
+      // Target Quarter filter
       const isQuarterAll = !selectedQuarter || selectedQuarter.toLowerCase() === 'all'
       if (!isQuarterAll) {
         const sqNorm = selectedQuarter.trim().toUpperCase()
@@ -390,23 +365,21 @@ export default function DevMetricsDashboard() {
 
   // 2. Subtypes that pertain to the dataset, with dynamic counts in the current bounds
   const subtypeOptions: SubtypeOption[] = useMemo(() => {
-    // Collect all valid subtypes matching the current Type filter (Residential / Commercial / All)
     const basePermits = rawPermits.filter(p => {
-      if (p.recordType !== 'Residential' && p.recordType !== 'Commercial') return false
-      if (isExcludedSubtype(p.recordSubtype)) return false
-      const yrNum = parseInt(p.year, 10)
-      if (isNaN(yrNum) || yrNum < 2025) return false
-      if (selectedType !== 'all' && p.recordType !== selectedType) return false
+      if (selectedType !== 'all') {
+        const selNorm = selectedType.toLowerCase()
+        const recNorm = (p.recordType || '').toLowerCase()
+        if (!recNorm.includes(selNorm)) return false
+      }
       return true
     })
 
     const allSubtypesSet = new Set<string>()
     basePermits.forEach(p => {
-      if (p.recordSubtype && !isExcludedSubtype(p.recordSubtype)) allSubtypesSet.add(p.recordSubtype)
+      if (p.recordSubtype) allSubtypesSet.add(p.recordSubtype)
     })
-    // Ensure currently selected subtypes always remain in the list so the filter never breaks
     selectedSubtypes.forEach(st => {
-      if (!isExcludedSubtype(st)) allSubtypesSet.add(st)
+      if (st) allSubtypesSet.add(st)
     })
 
     // Count matching permits in the current bounds (target year + quarter + type)
@@ -422,7 +395,6 @@ export default function DevMetricsDashboard() {
         count: boundsCountMap[subtype] || 0,
       }))
       .sort((a, b) => {
-        // Keep selected items at the top or items with positive count in current bounds
         const aSelected = selectedSubtypes.includes(a.subtype) ? 1 : 0
         const bSelected = selectedSubtypes.includes(b.subtype) ? 1 : 0
         if (aSelected !== bSelected) return bSelected - aSelected
@@ -471,11 +443,8 @@ export default function DevMetricsDashboard() {
     return `${Math.round(median * 10) / 10} days`
   }, [filteredPermits])
 
-  const kpiQueue = useMemo(() => {
-    return filteredPermits.filter(p => {
-      const s = (p.recordStatus || '').toLowerCase()
-      return s.includes('review') || s.includes('queue') || s.includes('accepted') || s.includes('in process')
-    }).length
+  const kpiPendingRecipient = useMemo(() => {
+    return filteredPermits.filter(p => isRecipientPendingStatus(p.recordStatus)).length
   }, [filteredPermits])
 
   const filteredProjects = useMemo(() => {
@@ -609,14 +578,6 @@ export default function DevMetricsDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowTokenDialog(true)}
-              className="flex items-center gap-1.5 text-white/90 hover:text-white bg-black/20 hover:bg-black/30 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors"
-              title="Configure ArcGIS authentication token"
-            >
-              <Key className="w-3.5 h-3.5" />
-              <span>{tokenInput ? 'ArcGIS Token (Active)' : 'ArcGIS Token'}</span>
-            </button>
-            <button
               onClick={loadData}
               className="flex items-center gap-2 text-white bg-black/20 hover:bg-black/40 px-3 py-1.5 rounded-md text-sm transition-colors"
             >
@@ -626,55 +587,6 @@ export default function DevMetricsDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ArcGIS Token Dialog Modal */}
-      {showTokenDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-card text-foreground border rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Key className="w-5 h-5 text-primary" />
-                <h3 className="text-base font-semibold">ArcGIS Authentication Token</h3>
-              </div>
-              <button
-                onClick={() => setShowTokenDialog(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              When querying the Mesa County ArcGIS Server (RTPO Maintstar Data MapServer/0) from outside the county network, you can provide an ArcGIS token to authenticate queries for live 2025 & 2026 permits.
-            </p>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold">ArcGIS Token</label>
-              <input
-                type="text"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Paste ArcGIS token here (or leave blank to clear)"
-                className="w-full text-xs font-mono p-2.5 rounded-lg border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowTokenDialog(false)}
-                className="px-3 py-1.5 rounded-md text-xs font-medium border hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveToken}
-                className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Save & Reload
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
 
@@ -702,40 +614,12 @@ export default function DevMetricsDashboard() {
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
             <StatCard
-              title="Permits Accepted to Approved"
-              value={kpiMedianAcceptedToApproved}
-              sub={selectedQuarter === 'all' ? (selectedYear === 'all' ? 'Median plan review' : `Median in ${selectedYear}`) : `Median for ${selectedQuarter}`}
-              icon={Clock}
-              accent="bg-white/15 text-white"
-            />
-            <StatCard
-              title="Permits Approved to Issuance"
-              value={kpiMedianApprovedToIssued}
-              sub={selectedQuarter === 'all' ? (selectedYear === 'all' ? 'Median issuance turnaround' : `Median in ${selectedYear}`) : `Median for ${selectedQuarter}`}
-              icon={Clock}
-              accent="bg-white/15 text-white"
-            />
-            <StatCard
-              title="Projects in Queue"
-              value={kpiQueue.toLocaleString()}
-              sub="Under review / pending"
-              icon={ListFilter}
-              accent="bg-white/15 text-white"
-            />
-            <StatCard
-              title="Major Projects (≥ $1M)"
-              value={kpiMajorCount}
-              sub={selectedSubtypes.length > 0 ? (selectedSubtypes.length === 1 ? `${selectedSubtypes[0]} (≥ $1M)` : `${selectedSubtypes.length} subtypes (≥ $1M)`) : "Valuation ≥ $1,000,000"}
-              icon={Building2}
-              accent="bg-white/15 text-white"
-            />
-            <StatCard
               title="Total Permits"
               value={kpiTotalPermits.toLocaleString()}
               sub={
                 selectedSubtypes.length > 0
                   ? (selectedSubtypes.length === 1 ? selectedSubtypes[0] : `${selectedSubtypes.length} subtypes selected`)
-                  : (selectedType === 'all' ? 'Commercial & Residential' : selectedType)
+                  : (selectedType === 'all' ? 'All Development & Trades' : `${selectedType} Permits`)
               }
               icon={Home}
               accent="bg-white/15 text-white"
@@ -745,10 +629,54 @@ export default function DevMetricsDashboard() {
               value={formatCompact(kpiTotalValuation)}
               sub={
                 selectedQuarter === 'all'
-                  ? (selectedYear === 'all' ? 'Combined 2025–2026 valuation' : `Total valuation in ${selectedYear}`)
+                  ? (selectedYear === 'all' ? 'Total estimated investment' : `Total valuation in ${selectedYear}`)
                   : `Valuation for ${selectedQuarter}${selectedYear !== 'all' ? ` ${selectedYear}` : ''}`
               }
               icon={TrendingUp}
+              accent="bg-white/15 text-white"
+            />
+            <StatCard
+              title="Major Projects (≥ $1M)"
+              value={kpiMajorCount}
+              sub={
+                kpiMajorValue > 0
+                  ? `${formatCompact(kpiMajorValue)} total value`
+                  : 'Valuation ≥ $1,000,000'
+              }
+              icon={Building2}
+              accent="bg-white/15 text-white"
+            />
+            <StatCard
+              title="Plan Review (Accepted to Approved)"
+              value={kpiMedianAcceptedToApproved}
+              sub={
+                selectedQuarter === 'all'
+                  ? (selectedYear === 'all' ? 'Median plan review duration' : `Median review in ${selectedYear}`)
+                  : `Median review for ${selectedQuarter}`
+              }
+              icon={Clock}
+              accent="bg-white/15 text-white"
+            />
+            <StatCard
+              title="Issuance Turnaround (Approved to Issued)"
+              value={kpiMedianApprovedToIssued}
+              sub={
+                selectedQuarter === 'all'
+                  ? (selectedYear === 'all' ? 'Median post-approval turnaround' : `Median turnaround in ${selectedYear}`)
+                  : `Median turnaround for ${selectedQuarter}`
+              }
+              icon={Clock}
+              accent="bg-white/15 text-white"
+            />
+            <StatCard
+              title="Pending Recipient Action"
+              value={kpiPendingRecipient.toLocaleString()}
+              sub={
+                selectedQuarter === 'all'
+                  ? (selectedYear === 'all' ? 'Awaiting applicant revisions, info, or fees' : `Awaiting applicant action (${selectedYear})`)
+                  : `Awaiting action for ${selectedQuarter}`
+              }
+              icon={PauseCircle}
               accent="bg-white/15 text-white"
             />
           </div>
