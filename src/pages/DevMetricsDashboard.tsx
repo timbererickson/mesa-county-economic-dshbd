@@ -11,7 +11,7 @@ import VitalitySection from '../ui/VitalitySection'
 import HumanServicesCallout from '../ui/HumanServicesCallout'
 
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts'
 import {
@@ -22,7 +22,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { Clock, ListFilter, Building2, DollarSign, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, Layers, PauseCircle } from 'lucide-react'
+import { Clock, Building2, ArrowUpDown, RefreshCw, ClipboardList, TrendingUp, Landmark, HardHat, Home, PauseCircle } from 'lucide-react'
 import { DevelopmentFilter, type SubtypeOption } from '../components/DevelopmentFilter'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -38,22 +38,10 @@ interface MajorProject {
   daysToIssue: number | null
 }
 
-interface QuarterStat {
-  quarter: string
-  commercial: number
-  residential: number
-  total: number
-  medianDays: number
-  queueCount: number
-  majorCount: number
-  majorValue: number
-}
-
 // ── Brand colors ────────────────────────────────────────────────────────────
 const TEAL = '#023e52'
 const CHART_CYAN = '#38bdf8'
 const CHART_PINK = '#ee8290'
-const PINK = '#e4808c'
 const RED  = '#c12033'
 
 // ── Formatting ─────────────────────────────────────────────────────────────
@@ -136,20 +124,24 @@ function StatCard({
   title, value, sub, icon: Icon, accent,
 }: {
   title: string
-  value: string | number
+  value: React.ReactNode
   sub?: string
   icon: React.ElementType
   accent: string
 }) {
   return (
-    <div className="rounded-xl border p-5 shadow-sm flex items-start justify-between gap-4" style={{ backgroundColor: TEAL }}>
-      <div className="flex flex-col gap-1 min-w-0">
-        <p className="text-sm font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{title}</p>
-        <p className="text-3xl font-bold tracking-tight text-white">{value}</p>
-        {sub && <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.6)' }}>{sub}</p>}
-      </div>
-      <div className={`rounded-xl p-3 shrink-0 ${accent}`}>
-        <Icon className="w-5 h-5" />
+    <div className="rounded-xl border p-5 shadow-sm flex flex-col justify-between gap-3 min-w-0" style={{ backgroundColor: TEAL }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1 min-w-0">
+          <p className="text-sm font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{title}</p>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-3xl font-bold tracking-tight text-white">{value}</span>
+          </div>
+          {sub && <p className="text-xs leading-snug" style={{ color: 'rgba(255,255,255,0.6)' }}>{sub}</p>}
+        </div>
+        <div className={`rounded-xl p-3 shrink-0 ${accent}`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
     </div>
   )
@@ -415,32 +407,148 @@ export default function DevMetricsDashboard() {
     })
   }, [boundsPermits, selectedSubtypes])
 
-  const kpiMedianAcceptedToApproved = useMemo(() => {
-    const daysList = filteredPermits
-      .map(p => p.daysAcceptedToApproved)
-      .filter((d): d is number => d != null && !isNaN(d))
+  const kpiPlanReview = useMemo(() => {
+    const validPairs = filteredPermits.filter(p => p.daysAcceptedToApproved != null && !isNaN(p.daysAcceptedToApproved!))
+    const dateVals = validPairs.map(p => p.daysAcceptedToApproved as number).sort((a, b) => a - b)
+    const timeHrs = validPairs
+      .map(p => p.timeAcceptedToApprovedHours)
+      .filter((t): t is number => t != null && !isNaN(t))
       .sort((a, b) => a - b)
 
-    if (daysList.length === 0) return '0 days'
-    const mid = Math.floor(daysList.length / 2)
-    const median = daysList.length % 2 !== 0
-      ? daysList[mid]
-      : (daysList[mid - 1] + daysList[mid]) / 2
-    return `${Math.round(median * 10) / 10} days`
+    if (dateVals.length === 0) {
+      return {
+        sampleSize: 0,
+        primaryValue: '—',
+        badge: 'No data',
+        timeValue: '—',
+        timeAvg: '—',
+        dateValue: '—',
+        dateAvg: '—',
+        note: 'No completed reviews in selected filters',
+      }
+    }
+
+    const midD = Math.floor(dateVals.length / 2)
+    const dateMedian = dateVals.length % 2 !== 0 ? dateVals[midD] : (dateVals[midD - 1] + dateVals[midD]) / 2
+    const dateAvg = dateVals.reduce((s, x) => s + x, 0) / dateVals.length
+
+    let timeMedian = 0
+    let timeAvg = 0
+    if (timeHrs.length > 0) {
+      const midT = Math.floor(timeHrs.length / 2)
+      timeMedian = timeHrs.length % 2 !== 0 ? timeHrs[midT] : (timeHrs[midT - 1] + timeHrs[midT]) / 2
+      timeAvg = timeHrs.reduce((s, x) => s + x, 0) / timeHrs.length
+    }
+
+    const sameDayCount = dateVals.filter(d => d === 0).length
+    const sameDayPct = Math.round((sameDayCount / dateVals.length) * 100)
+
+    const formatTime = (hrs: number) => {
+      if (hrs < 24) return `${Math.round(hrs * 10) / 10} hrs`
+      const days = Math.round((hrs / 24) * 10) / 10
+      return `${days} days`
+    }
+
+    const formatDate = (days: number) => {
+      if (days === 0) return '0 days (same date)'
+      if (days === 1) return '1 calendar day'
+      return `${Math.round(days * 10) / 10} days`
+    }
+
+    let primaryValue = ''
+    let badge = ''
+
+    if (timeMedian < 24) {
+      primaryValue = `${Math.round(timeMedian * 10) / 10} hrs`
+      badge = dateMedian === 0 ? 'Same-day date' : `${dateMedian}d date diff`
+    } else {
+      const d = Math.round((timeMedian / 24) * 10) / 10
+      primaryValue = `${d} days`
+      badge = `${dateMedian}d date diff`
+    }
+
+    return {
+      sampleSize: dateVals.length,
+      primaryValue,
+      badge,
+      timeValue: `${formatTime(timeMedian)} median`,
+      timeAvg: `avg: ${formatTime(timeAvg)}`,
+      dateValue: `${formatDate(dateMedian)} median`,
+      dateAvg: `avg: ${Math.round(dateAvg * 10) / 10}d (${sameDayPct}% same-day)`,
+      note: `Captures sub-day timestamp velocity and calendar date span (${sameDayPct}% same-day)`,
+    }
   }, [filteredPermits])
 
-  const kpiMedianApprovedToIssued = useMemo(() => {
-    const daysList = filteredPermits
-      .map(p => p.daysApprovedToIssued)
-      .filter((d): d is number => d != null && !isNaN(d))
+  const kpiIssuanceTurnaround = useMemo(() => {
+    const validPairs = filteredPermits.filter(p => p.daysApprovedToIssued != null && !isNaN(p.daysApprovedToIssued!))
+    const dateVals = validPairs.map(p => p.daysApprovedToIssued as number).sort((a, b) => a - b)
+    const timeHrs = validPairs
+      .map(p => p.timeApprovedToIssuedHours)
+      .filter((t): t is number => t != null && !isNaN(t))
       .sort((a, b) => a - b)
 
-    if (daysList.length === 0) return '0 days'
-    const mid = Math.floor(daysList.length / 2)
-    const median = daysList.length % 2 !== 0
-      ? daysList[mid]
-      : (daysList[mid - 1] + daysList[mid]) / 2
-    return `${Math.round(median * 10) / 10} days`
+    if (dateVals.length === 0) {
+      return {
+        sampleSize: 0,
+        primaryValue: '—',
+        badge: 'No data',
+        timeValue: '—',
+        timeAvg: '—',
+        dateValue: '—',
+        dateAvg: '—',
+        note: 'No completed issuances in selected filters',
+      }
+    }
+
+    const midD = Math.floor(dateVals.length / 2)
+    const dateMedian = dateVals.length % 2 !== 0 ? dateVals[midD] : (dateVals[midD - 1] + dateVals[midD]) / 2
+    const dateAvg = dateVals.reduce((s, x) => s + x, 0) / dateVals.length
+
+    let timeMedian = 0
+    let timeAvg = 0
+    if (timeHrs.length > 0) {
+      const midT = Math.floor(timeHrs.length / 2)
+      timeMedian = timeHrs.length % 2 !== 0 ? timeHrs[midT] : (timeHrs[midT - 1] + timeHrs[midT]) / 2
+      timeAvg = timeHrs.reduce((s, x) => s + x, 0) / timeHrs.length
+    }
+
+    const sameDayCount = dateVals.filter(d => d === 0).length
+    const sameDayPct = Math.round((sameDayCount / dateVals.length) * 100)
+
+    const formatTime = (hrs: number) => {
+      if (hrs < 24) return `${Math.round(hrs * 10) / 10} hrs`
+      const days = Math.round((hrs / 24) * 10) / 10
+      return `${days} days`
+    }
+
+    const formatDate = (days: number) => {
+      if (days === 0) return '0 days (same date)'
+      if (days === 1) return '1 calendar day'
+      return `${Math.round(days * 10) / 10} days`
+    }
+
+    let primaryValue = ''
+    let badge = ''
+
+    if (timeMedian < 24) {
+      primaryValue = `${Math.round(timeMedian * 10) / 10} hrs`
+      badge = dateMedian === 0 ? 'Same-day date' : `${dateMedian}d date diff`
+    } else {
+      const d = Math.round((timeMedian / 24) * 10) / 10
+      primaryValue = `${d} days`
+      badge = `${dateMedian}d date diff`
+    }
+
+    return {
+      sampleSize: dateVals.length,
+      primaryValue,
+      badge,
+      timeValue: `${formatTime(timeMedian)} median`,
+      timeAvg: `avg: ${formatTime(timeAvg)}`,
+      dateValue: `${formatDate(dateMedian)} median`,
+      dateAvg: `avg: ${Math.round(dateAvg * 10) / 10}d (${sameDayPct}% same-day)`,
+      note: `Captures sub-day timestamp velocity and calendar date span (${sameDayPct}% same-day)`,
+    }
   }, [filteredPermits])
 
   const kpiPendingRecipient = useMemo(() => {
@@ -513,7 +621,7 @@ export default function DevMetricsDashboard() {
     // Filter permits by Type and Subtypes (chart honors current type and subtype filters)
     const basePermits = rawPermits.filter(p => {
       if (p.recordType !== 'Residential' && p.recordType !== 'Commercial') return false
-      if (isExcludedSubtype(p.recordSubtype)) return false
+      if (isExcludedSubtype(p.recordSubtype, p.recordType)) return false
       const yrNum = parseInt(p.year, 10)
       if (isNaN(yrNum) || (yrNum !== 2025 && yrNum !== 2026)) return false
 
@@ -648,22 +756,26 @@ export default function DevMetricsDashboard() {
             />
             <StatCard
               title="Plan Review (Accepted to Approved)"
-              value={kpiMedianAcceptedToApproved}
+              value={kpiPlanReview.primaryValue}
               sub={
                 selectedQuarter === 'all'
-                  ? (selectedYear === 'all' ? 'Median plan review duration' : `Median review in ${selectedYear}`)
-                  : `Median review for ${selectedQuarter}`
+                  ? (selectedYear === 'all'
+                      ? `Median plan review across ${kpiPlanReview.sampleSize.toLocaleString()} permits`
+                      : `Median review in ${selectedYear} (${kpiPlanReview.sampleSize.toLocaleString()} permits)`)
+                  : `Median review for ${selectedQuarter} (${kpiPlanReview.sampleSize.toLocaleString()} permits)`
               }
               icon={Clock}
               accent="bg-white/15 text-white"
             />
             <StatCard
               title="Issuance Turnaround (Approved to Issued)"
-              value={kpiMedianApprovedToIssued}
+              value={kpiIssuanceTurnaround.primaryValue}
               sub={
                 selectedQuarter === 'all'
-                  ? (selectedYear === 'all' ? 'Median post-approval turnaround' : `Median turnaround in ${selectedYear}`)
-                  : `Median turnaround for ${selectedQuarter}`
+                  ? (selectedYear === 'all'
+                      ? `Median post-approval across ${kpiIssuanceTurnaround.sampleSize.toLocaleString()} permits`
+                      : `Median turnaround in ${selectedYear} (${kpiIssuanceTurnaround.sampleSize.toLocaleString()} permits)`)
+                  : `Median turnaround for ${selectedQuarter} (${kpiIssuanceTurnaround.sampleSize.toLocaleString()} permits)`
               }
               icon={Clock}
               accent="bg-white/15 text-white"

@@ -9,9 +9,17 @@ export interface PermitRecord {
   acceptedDate: string | null
   approvedDate: string | null
   issuedDate: string | null
+  // Calendar date differences (actual calendar day span)
   daysToIssue: number | null
   daysAcceptedToApproved: number | null
   daysApprovedToIssued: number | null
+  // Exact elapsed time differences (accounting for hours and minutes)
+  timeToIssueHours: number | null
+  timeToIssueDays: number | null
+  timeAcceptedToApprovedHours: number | null
+  timeAcceptedToApprovedDays: number | null
+  timeApprovedToIssuedHours: number | null
+  timeApprovedToIssuedDays: number | null
   openYear: string
   openQuarter: string
   month: string
@@ -37,11 +45,56 @@ const CACHE_DURATION = 5 * 60 * 1000
 
 const ARCGIS_BASE_URL = 'https://mcgis.mesacounty.us/arcgis/rest/services/RTPO/RTPO_Maintstar_Data/MapServer/0/query'
 
-// All subtypes are now supported and displayed per GIS layer predefined 2025+ configuration
-export const EXCLUDED_SUBTYPES_LIST: readonly string[] = []
+/**
+ * Commercial subtypes that average less than 1 day (< 24 hours) in plan review
+ * or turnaround time. These are over-the-counter/trade permits that do not undergo
+ * true development plan review processes.
+ */
+export const EXCLUDED_COMMERCIAL_SUBTYPES = [
+  'Service for Booster Box',
+  'Reroof',
+  'Electrical Service Upgrade',
+  'Release of Non- Compliance',
+  'Gas Line Repair/Replace',
+  'Electrical Panel Replacement',
+  'Water/Sewer Line Repair/Replacement',
+  'HVAC Equipment',
+  'Window Replacement',
+  'Grease Trap Replacement',
+] as const
 
-export function isExcludedSubtype(_subtype?: string | undefined | null): boolean {
+export function isExcludedCommercialSubtype(subtype: string | null | undefined): boolean {
+  if (!subtype) return false
+  const normalized = subtype.toLowerCase().trim().replace(/^["']|["']$/g, '')
+  return EXCLUDED_COMMERCIAL_SUBTYPES.some(
+    s => s.toLowerCase().trim() === normalized
+  )
+}
+
+export function isExcludedSubtype(subtype?: string | undefined | null, recordType?: string): boolean {
+  if (!subtype) return false
+  if (recordType === 'Commercial' || !recordType) {
+    if (isExcludedCommercialSubtype(subtype)) return true
+  }
   return false
+}
+
+/**
+ * Residential permits scoped to specific keywords per development process metrics requirements:
+ * remodel, family, solar, home, residential
+ */
+export const RESIDENTIAL_SUBTYPE_KEYWORDS = [
+  'remodel',
+  'family',
+  'solar',
+  'home',
+  'residential',
+] as const
+
+export function isQualifyingResidentialSubtype(subtype: string | null | undefined): boolean {
+  if (!subtype) return false
+  const normalized = subtype.toLowerCase().trim()
+  return RESIDENTIAL_SUBTYPE_KEYWORDS.some(kw => normalized.includes(kw))
 }
 
 export const RECIPIENT_PENDING_STATUS_PATTERNS = [
@@ -67,34 +120,56 @@ export function parseDateVal(val: any): { timestamp: number | null; dateStr: str
   if (val === null || val === undefined || val === '') {
     return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
   }
-  let d: Date
+  let y: number, m: number, dt: number
+  let timestamp: number | null = null
+
   if (typeof val === 'number') {
-    // Esri ArcGIS millisecond timestamp
-    d = new Date(val)
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
+    y = d.getFullYear()
+    m = d.getMonth()
+    dt = d.getDate()
+    timestamp = d.getTime()
   } else {
     const s = String(val).trim()
     if (!s) return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
-    if (/^\d{11,14}$/.test(s)) {
-      d = new Date(Number(s))
-    } else if (/^\d{9,10}$/.test(s)) {
-      d = new Date(Number(s) * 1000)
+
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/)
+    if (isoMatch) {
+      y = Number(isoMatch[1])
+      m = Number(isoMatch[2]) - 1
+      dt = Number(isoMatch[3])
+      const hr = isoMatch[4] ? Number(isoMatch[4]) : 0
+      const min = isoMatch[5] ? Number(isoMatch[5]) : 0
+      const sec = isoMatch[6] ? Number(isoMatch[6]) : 0
+      timestamp = Date.UTC(y, m, dt, hr, min, sec)
     } else {
-      d = new Date(s)
+      const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{2}):(\d{2}):(\d{2}))?/)
+      if (usMatch) {
+        y = Number(usMatch[3])
+        m = Number(usMatch[1]) - 1
+        dt = Number(usMatch[2])
+        const hr = usMatch[4] ? Number(usMatch[4]) : 0
+        const min = usMatch[5] ? Number(usMatch[5]) : 0
+        const sec = usMatch[6] ? Number(usMatch[6]) : 0
+        timestamp = Date.UTC(y, m, dt, hr, min, sec)
+      } else {
+        const d = new Date(s.replace(' ', 'T'))
+        if (isNaN(d.getTime())) return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
+        y = d.getFullYear()
+        m = d.getMonth()
+        dt = d.getDate()
+        timestamp = d.getTime()
+      }
     }
   }
 
-  if (isNaN(d.getTime())) {
-    return { timestamp: null, dateStr: null, year: null, quarter: null, month: null }
-  }
-
-  const y = d.getFullYear()
-  const qNum = Math.floor(d.getMonth() / 3) + 1
-  const m = d.getMonth()
+  const qNum = Math.floor(m / 3) + 1
   const pad = (n: number) => String(n).padStart(2, '0')
-  const dateStr = `${y}-${pad(m + 1)}-${pad(d.getDate())}`
+  const dateStr = `${y}-${pad(m + 1)}-${pad(dt)}`
 
   return {
-    timestamp: d.getTime(),
+    timestamp,
     dateStr,
     year: y,
     quarter: `Q${qNum}`,
@@ -102,23 +177,42 @@ export function parseDateVal(val: any): { timestamp: number | null; dateStr: str
   }
 }
 
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = []
-  let inQuotes = false
-  let cur = ''
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      inQuotes = !inQuotes
-    } else if (c === ',' && !inQuotes) {
-      fields.push(cur)
-      cur = ''
-    } else {
-      cur += c
-    }
+export function getCalendarDayDiff(dateStr1: string | null, dateStr2: string | null): number | null {
+  if (!dateStr1 || !dateStr2) return null
+  const [y1, m1, d1] = dateStr1.split('-').map(Number)
+  const [y2, m2, d2] = dateStr2.split('-').map(Number)
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return null
+  const dt1 = Date.UTC(y1, m1 - 1, d1)
+  const dt2 = Date.UTC(y2, m2 - 1, d2)
+  const diff = Math.round((dt2 - dt1) / (1000 * 60 * 60 * 24))
+  return diff >= 0 ? diff : null
+}
+
+export function getTimeDiff(
+  info1: { timestamp: number | null; dateStr: string | null },
+  info2: { timestamp: number | null; dateStr: string | null }
+): { hours: number; days: number } | null {
+  if (!info1?.timestamp || !info2?.timestamp || !info1.dateStr || !info2.dateStr) return null
+  const calDiff = getCalendarDayDiff(info1.dateStr, info2.dateStr)
+  if (calDiff === null) return null
+
+  // If chronologically info2 is after or equal to info1
+  if (info2.timestamp >= info1.timestamp) {
+    const hours = Math.round(((info2.timestamp - info1.timestamp) / (1000 * 60 * 60)) * 10) / 10
+    const days = Math.round((hours / 24) * 100) / 100
+    return { hours, days }
   }
-  fields.push(cur)
-  return fields
+
+  // If recorded on the same calendar day, but info2 had a default morning/midnight timestamp (e.g. 06:00:00 UTC)
+  if (calDiff === 0) {
+    return { hours: 0, days: 0 }
+  }
+
+  // If positive calendar date difference, clamp negative sub-day jitter
+  const rawHours = (info2.timestamp - info1.timestamp) / (1000 * 60 * 60)
+  const hours = Math.round(Math.max(0, rawHours) * 10) / 10
+  const days = Math.round((hours / 24) * 100) / 100
+  return { hours, days }
 }
 
 function getArcGISToken(): string {
@@ -204,29 +298,33 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
       ? appInfo
       : ((accInfo.year && accInfo.year >= 2025) ? accInfo : (issInfo.year && issInfo.year >= 2025 ? issInfo : (appInfo.year ? appInfo : { year: 2025, quarter: 'Q1', month: 'Jan', dateStr: '2025-01-01', timestamp: null })))
 
-    const startTs = appInfo.timestamp || accInfo.timestamp
-    const endTs = issInfo.timestamp || apprInfo.timestamp
+    const effectiveAppInfo = appInfo.dateStr ? appInfo : accInfo
+    const effectiveIssInfo = issInfo.dateStr ? issInfo : apprInfo
 
-    let daysToIssue: number | null = null
-    if (startTs && endTs && endTs >= startTs) {
-      daysToIssue = Math.round(((endTs - startTs) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
+    // Calendar date differences
+    const daysToIssue = getCalendarDayDiff(effectiveAppInfo.dateStr, effectiveIssInfo.dateStr)
+    const daysAcceptedToApproved = getCalendarDayDiff(effectiveAppInfo.dateStr, apprInfo.dateStr)
+    const daysApprovedToIssued = getCalendarDayDiff(apprInfo.dateStr, issInfo.dateStr)
 
-    const accStartTs = accInfo.timestamp || appInfo.timestamp
-    let daysAcceptedToApproved: number | null = null
-    if (accStartTs && apprInfo.timestamp && apprInfo.timestamp >= accStartTs) {
-      daysAcceptedToApproved = Math.round(((apprInfo.timestamp - accStartTs) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
-
-    let daysApprovedToIssued: number | null = null
-    if (apprInfo.timestamp && issInfo.timestamp && issInfo.timestamp >= apprInfo.timestamp) {
-      daysApprovedToIssued = Math.round(((issInfo.timestamp - apprInfo.timestamp) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
+    // Exact elapsed time differences (accounting for hours & minutes)
+    const timeToIssue = getTimeDiff(effectiveAppInfo, effectiveIssInfo)
+    const timeAcceptedToApproved = getTimeDiff(effectiveAppInfo, apprInfo)
+    const timeApprovedToIssued = getTimeDiff(apprInfo, issInfo)
 
     const yr = String(primaryInfo.year || 2025)
     const qtr = `${primaryInfo.quarter || 'Q1'} ${yr}`
 
     const recordSubtype = a.Record_Subtype || a.RecordSubType || a.Subtype || a.Permit_Subtype || 'General'
+
+    // Scope residential permits to requested subtype keywords (remodel, family, solar, home, residential)
+    if (recType === 'Residential' && !isQualifyingResidentialSubtype(recordSubtype)) {
+      continue
+    }
+
+    // Exclude commercial permits that do not undergo true plan review (average review or turnaround < 1 day)
+    if (recType === 'Commercial' && isExcludedCommercialSubtype(recordSubtype)) {
+      continue
+    }
 
     records.push({
       permitNumber: a.Permit_Number || a.PermitNumber || a.HumanName || `PERMIT-${a.OBJECTID || records.length + 1}`,
@@ -242,6 +340,12 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
       daysToIssue,
       daysAcceptedToApproved,
       daysApprovedToIssued,
+      timeToIssueHours: timeToIssue?.hours ?? null,
+      timeToIssueDays: timeToIssue?.days ?? null,
+      timeAcceptedToApprovedHours: timeAcceptedToApproved?.hours ?? null,
+      timeAcceptedToApprovedDays: timeAcceptedToApproved?.days ?? null,
+      timeApprovedToIssuedHours: timeApprovedToIssued?.hours ?? null,
+      timeApprovedToIssuedDays: timeApprovedToIssued?.days ?? null,
       openYear: yr,
       openQuarter: primaryInfo.quarter ?? 'Q1',
       month: primaryInfo.month ?? 'Jan',
@@ -254,9 +358,6 @@ async function fetchArcGISPermits(): Promise<PermitRecord[]> {
 
   return records
 }
-
-// @ts-ignore
-import satsMaintStarCsvUrl from '../data/sats_MaintStar.csv?url'
 
 function robustParseLine(line: string): string[] {
   let firstCommas: number[] = []
@@ -349,6 +450,17 @@ async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
     }
 
     const recordSubtype = r[3]?.trim() || 'General'
+
+    // Scope residential permits to requested subtype keywords (remodel, family, solar, home, residential)
+    if (recordType === 'Residential' && !isQualifyingResidentialSubtype(recordSubtype)) {
+      continue
+    }
+
+    // Exclude commercial permits that do not undergo true plan review (average review or turnaround < 1 day)
+    if (recordType === 'Commercial' && isExcludedCommercialSubtype(recordSubtype)) {
+      continue
+    }
+
     const address = r[4]?.trim() || ''
     const description = r[5]?.trim() || ''
     const recordStatus = r[6]?.trim() || 'Unknown'
@@ -365,24 +477,15 @@ async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
     const issuedRaw = r[9]?.trim()
     const issInfo = parseDateVal(issuedRaw)
 
-    // Calculate days metrics
-    const startTs = appInfo.timestamp
-    const endTs = issInfo.timestamp || apprInfo.timestamp
+    // Calculate calendar date differences adhering directly to official dates
+    const daysToIssue = getCalendarDayDiff(appInfo.dateStr, issInfo.dateStr || apprInfo.dateStr)
+    const daysAcceptedToApproved = getCalendarDayDiff(appInfo.dateStr, apprInfo.dateStr)
+    const daysApprovedToIssued = getCalendarDayDiff(apprInfo.dateStr, issInfo.dateStr)
 
-    let daysToIssue: number | null = null
-    if (startTs && endTs && endTs >= startTs) {
-      daysToIssue = Math.round(((endTs - startTs) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
-
-    let daysAcceptedToApproved: number | null = null
-    if (startTs && apprInfo.timestamp && apprInfo.timestamp >= startTs) {
-      daysAcceptedToApproved = Math.round(((apprInfo.timestamp - startTs) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
-
-    let daysApprovedToIssued: number | null = null
-    if (apprInfo.timestamp && issInfo.timestamp && issInfo.timestamp >= apprInfo.timestamp) {
-      daysApprovedToIssued = Math.round(((issInfo.timestamp - apprInfo.timestamp) / (1000 * 60 * 60 * 24)) * 10) / 10
-    }
+    // Calculate exact elapsed time differences (accounting for hours & minutes)
+    const timeToIssue = getTimeDiff(appInfo, issInfo.timestamp ? issInfo : apprInfo)
+    const timeAcceptedToApproved = getTimeDiff(appInfo, apprInfo)
+    const timeApprovedToIssued = getTimeDiff(apprInfo, issInfo)
 
     const valRaw = r[10]?.trim().replace(/[$,]/g, '') || ''
     const valuation = parseFloat(valRaw) || 0
@@ -409,6 +512,12 @@ async function fetchLocalCsvPermits(): Promise<PermitRecord[]> {
       daysToIssue,
       daysAcceptedToApproved,
       daysApprovedToIssued,
+      timeToIssueHours: timeToIssue?.hours ?? null,
+      timeToIssueDays: timeToIssue?.days ?? null,
+      timeAcceptedToApprovedHours: timeAcceptedToApproved?.hours ?? null,
+      timeAcceptedToApprovedDays: timeAcceptedToApproved?.days ?? null,
+      timeApprovedToIssuedHours: timeApprovedToIssued?.hours ?? null,
+      timeApprovedToIssuedDays: timeApprovedToIssued?.days ?? null,
       openYear: yr,
       openQuarter: primaryInfo.quarter ?? 'Q1',
       month: primaryInfo.month ?? 'Jan',
@@ -440,6 +549,44 @@ export default async function fetchPermitData(): Promise<PermitFetchResult> {
     console.error('Failed to load local permit snapshot:', csvErr)
     arcgisError = csvErr?.message || String(csvErr)
     rawPermits = []
+  }
+
+  // Dynamically compute and filter out any commercial subtype with average review or turnaround < 24 hrs (< 1 day)
+  const comStats: Record<string, { revHrs: number[]; turnHrs: number[] }> = {}
+  rawPermits.forEach(p => {
+    if (p.recordType === 'Commercial') {
+      const st = (p.recordSubtype || 'General').trim().replace(/^["']|["']$/g, '')
+      if (!comStats[st]) {
+        comStats[st] = { revHrs: [], turnHrs: [] }
+      }
+      if (p.timeAcceptedToApprovedHours != null && !isNaN(p.timeAcceptedToApprovedHours)) {
+        comStats[st].revHrs.push(p.timeAcceptedToApprovedHours)
+      }
+      if (p.timeApprovedToIssuedHours != null && !isNaN(p.timeApprovedToIssuedHours)) {
+        comStats[st].turnHrs.push(p.timeApprovedToIssuedHours)
+      } else if (p.timeToIssueHours != null && !isNaN(p.timeToIssueHours)) {
+        comStats[st].turnHrs.push(p.timeToIssueHours)
+      }
+    }
+  })
+
+  const fastComSubtypes = new Set<string>()
+  Object.entries(comStats).forEach(([st, data]) => {
+    const avgRev = data.revHrs.length > 0 ? data.revHrs.reduce((a, b) => a + b, 0) / data.revHrs.length : null
+    const avgTurn = data.turnHrs.length > 0 ? data.turnHrs.reduce((a, b) => a + b, 0) / data.turnHrs.length : null
+    if ((avgRev !== null && avgRev < 24) || (avgTurn !== null && avgTurn < 24)) {
+      fastComSubtypes.add(st.toLowerCase())
+    }
+  })
+
+  if (fastComSubtypes.size > 0) {
+    rawPermits = rawPermits.filter(p => {
+      if (p.recordType === 'Commercial') {
+        const norm = (p.recordSubtype || 'General').trim().replace(/^["']|["']$/g, '').toLowerCase()
+        if (fastComSubtypes.has(norm)) return false
+      }
+      return true
+    })
   }
 
   const availableSubtypes = [...new Set(rawPermits.map(p => p.recordSubtype).filter(Boolean))].sort()
