@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for scoping Residential permits to the 5 requested subtype keywords (remodel, family, solar, home, residential) across all dashboard metrics, charts, tables, and subtype filter menus.",
-  "updatedAt":  "2026-10-21T16:10:39.792031071Z",
+  "summary":  "Implementation plan to update FY 2026 fiscal revenue data with Sep 2026 YTD figures. Includes updating data modules, UI filters to enable Q3, and side-by-side comparative charts for Q1-Q3 (2025 vs 2026).",
+  "updatedAt":  "2026-10-28T18:44:12.223858923Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

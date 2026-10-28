@@ -1,113 +1,83 @@
-# Residential Permit Subtype Keyword Scoping
+# FY 2026 Sep YTD Fiscal Data Integration
 
-Enforces strict keyword-based scoping for residential development permits, restricting all residential data across dashboard metrics, charts, KPI summary cards, turnaround analytics, and subtype selectors exclusively to subtypes matching `remodel`, `family`, `solar`, `home`, or `residential`.
+Update the dashboard's Fiscal Activity Signals with verified receipts through September 2026, enabling Q3 analysis and year-over-year comparisons for three full quarters.
 
-### User Review & Critical Decisions
+---
+
+## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The residential permit scope has been confirmed via user interview and will be applied uniformly across the entire application lifecycle.
-
-- **Confirmed Decision 1 (Scope Level)**: Applied across all dashboard metrics, charts, turnaround calculations, and subtype filter lists. Non-matching residential permits (e.g. pure reroofing, window/door replacements, mechanical equipment) are completely excluded from residential totals and lists.
-- **Confirmed Decision 2 (Target Field)**: Subtype filtering inspects the **permit subtype name only** using case-insensitive keyword matching (`remodel`, `family`, `solar`, `home`, `residential`). Commercial permits remain unaffected.
-- **Confirmed Decision 3 (Transparency & UI Indicators)**: A clear scope badge is displayed in the filter bar when Residential or All permits are active, informing stakeholders that residential analytics are scoped to core construction and renovation categories.
+> The following decisions were confirmed by the user in Phase 1:
+> - **Quarter Filters**: All quarters (Q1–Q4) remain visible in the toolbar. Q1, Q2, and Q3 are now fully active for 2026, while Q4 is marked as "Pending" and disabled.
+> - **Comparative Visualizations**: Grouped bar charts will display Q1, Q2, and Q3 side-by-side (2025 vs 2026) to show the full YTD performance trajectory.
 
 ---
 
-### 1. Overview & Core Concept
+## 1. Overview & Core Concept
 
-- **What It Does**: The Mesa County Development Metrics Dashboard will restrict residential permit data ingestion and analysis to five core development categories: `remodel`, `family`, `solar`, `home`, and `residential`. Routine non-structural maintenance permits (such as standalone reroofing, utility replacements, and simple window swaps) will be filtered out, focusing analytics squarely on major residential building, addition, and renewable energy investments.
-- **Target Audience / Persona**: Development directors, county commissioners, and urban planners evaluating housing growth, single/multi-family construction, residential solar adoption, and major residential remodels.
-- **Key Value**: Eliminates distortion from high-volume, low-complexity maintenance permits (such as 8,700+ routine reroofing permits), delivering accurate turnaround times, realistic median valuations, and relevant subtype breakdowns for true residential building activity.
-
----
-
-### 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. **Landing & Initial Load**: Upon loading the dashboard, residential permit aggregates (valuation, volume, average days to issue) instantly reflect only the qualifying subtypes.
-  2. **Subtype Selector Dropdown**: Opening the Subtype Filter modal or dropdown displays only the qualifying residential subtypes (e.g., `Single Family`, `Electrical Solar`, `Residential Remodel/ Addition/ Alteration`, `Manufactured Home`, `Two Family`, `Interior Remodel`), keeping the list clean and purposeful.
-  3. **Visual Scope Indicator**: A subtle, elegant filter chip (`Scoped: Remodel • Family • Solar • Home • Residential`) appears alongside the Record Type filter, providing immediate confirmation of the active criteria.
-  4. **Commercial Toggle**: Switching between "Commercial", "Residential", and "All" smoothly adapts the metrics. Commercial permits continue to show all commercial classifications.
-- **Visual Identity & Theme**:
-  - Consistent Retool/Executive Navy aesthetic (`#023e52` teal primary, `#182029` dark card panels, `#2c3746` borders, `#38bdf8` cyan accents).
-  - Clean badge styling with cyan highlights to indicate active scoping rules.
+- **What It Does**: Replaces the previously inaccurate Jan–Jun 2026 data with the comprehensive Sep 2026 YTD receipts ($71.35M total). It enables detailed tracking of Property, Sales, and Use Tax collections across nine months of 2026 compared to 2025.
+- **Target Audience**: County financial decision-makers tracking revenue performance through the third quarter.
+- **Key Value**: Accurate, three-quarter YoY benchmarking (Jan–Sep) with verified $0.00 variance from the official general ledger report.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+## 2. User Experience & Visual Design
 
-- **Decision 1: Upstream Filter in Permit Ingestion Pipeline**
-  - *Chosen Approach*: Implement `isQualifyingResidentialSubtype` inside `src/backend/getPermitData.ts` during record parsing and dataset aggregation.
-  - *Why*: Guarantees 100% consistency across all downstream consumers: summary cards, trend charts (2025 vs 2026), major projects table, turnaround percentiles, and subtype dropdown counts without risk of desynchronization.
-  - *Alternatives Considered*: Filtering only in the UI presentation layer (`DevMetricsDashboard.tsx`). Rejected because raw totals, pre-calculated quarters, and subtype lists would risk leaking un-scoped records or showing mismatched counts.
-
-- **Decision 2: Subtype Substring Matching Logic**
-  - *Chosen Approach*: Case-insensitive pattern matching:
-    ```typescript
-    const RESIDENTIAL_SUBTYPE_KEYWORDS = ['remodel', 'family', 'solar', 'home', 'residential'] as const;
-    export function isQualifyingResidentialSubtype(subtype: string | null | undefined): boolean {
-      if (!subtype) return false;
-      const normalized = subtype.toLowerCase();
-      return RESIDENTIAL_SUBTYPE_KEYWORDS.some(kw => normalized.includes(kw));
-    }
-    ```
-  - *Why*: Accommodates variations across historical and GIS feeds (e.g., `Single Family Dwelling`, `Electrical Solar`, `Residential Garage/Shop`, `Manufactured Home`, `Interior Remodel`).
-
-- **Decision 3: Preserving Commercial Permit Integrity**
-  - *Chosen Approach*: Scoping rule strictly evaluates `recordType === 'Residential'`. If `recordType === 'Commercial'`, the permit is retained according to commercial permitting rules.
-  - *Why*: Adheres precisely to user specification without altering commercial development metrics.
+- **Fiscal Toolbar**:
+  - `Q3` button is now enabled for 2026 and YoY modes.
+  - `Q4` remains visible but disabled with a "Pending" label.
+  - "All (YTD)" filter now aggregates Jan–Sep for 2026.
+- **KPI Summary Cards**:
+  - Displays current 2026 totals ($38.43M Sales, $30.53M Property, $2.39M Use).
+  - YoY deltas update to compare the first three quarters of 2026 against the first three quarters of 2025.
+- **Grouped Bar Charts**:
+  - Added Q3 2026 bars ($13.16M total) alongside Q1 and Q2.
+  - Maintains distinctive color tokens for 2025 (muted contrast) and 2026 (vibrant teal/pink).
+- **Monthly Drilldown Table**:
+  - Expanded to include July, August, and September 2026 line items.
+  - Retains accounting adjustment visibility (e.g., negative Use Tax in March).
 
 ---
 
-### 4. Technical Architecture & Data Strategy
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Data Integrity & Overwriting**:
+  - *Chosen Approach*: Directly overwrite `src/data/fiscalData2026.ts` with the Sep YTD values.
+  - *Why*: Ensures the "inaccurate" source is completely purged from the application logic as requested.
+- **Decision 2: Q3 Sep 2026 Representation**:
+  - *Chosen Approach*: Explicitly include the small September receipt ($1,434.30) to maintain audit fidelity, even though it likely represents a partial reporting cycle.
+- **Decision 3: Chart Scope**:
+  - *Chosen Approach*: Extend the grouped comparison to Q3 while keeping Q4 empty for 2026.
+  - *Why*: Provides the most comprehensive performance view allowed by the current reporting period.
+
+---
+
+## 4. Technical Architecture & Data Strategy
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│               Data Sources (CSV / ArcGIS REST)                  │
-│               /data/permit-valuations2.csv                      │
+│     MESA Revenue by Period - Sep 2026 YTD CSV (Jan-Sep)         │
 └────────────────────────────────┬────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                 src/backend/getPermitData.ts                    │
-│                                                                 │
-│  parseDateVal()  ──►  robustParseLine()  ──►  Record Extraction │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Keyword Scoping Gate:                                     │  │
-│  │ if (recordType === 'Residential') {                       │  │
-│  │   keep = isQualifyingResidentialSubtype(recordSubtype);   │  │
-│  │ }                                                         │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                │                                │
-│       Filtered Records & Scoped Subtype Set Generated           │
+│                     src/data/fiscalData2026.ts                  │
+│  - Property Tax: Q1 $12.63M | Q2 $17.13M | Q3 $0.77M | YTD $30.53M
+│  - Sales Tax:    Q1 $10.43M | Q2 $16.38M | Q3 $11.61M| YTD $38.43M
+│  - Use Tax:      Q1 $0.59M  | Q2 $1.03M  | Q3 $0.77M | YTD $2.39M
 └────────────────────────────────┬────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              src/pages/DevMetricsDashboard.tsx                  │
-│                                                                 │
-│  • KPI Metric Cards (Total Value, Permits Issued, Avg Turnaround)│
-│  • Permit Volume & Value Comparison Charts (2025 vs 2026)       │
-│  • Major Projects Table (Valuation >= $500K)                    │
-│  • Turnaround Analytics (Calendar Days vs Elapsed Hours)        │
-└────────────────────────────────┬────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│             src/components/DevelopmentFilter.tsx                │
-│                                                                 │
-│  • Record Type: [All | Commercial | Residential]                │
-│  • Subtype Dropdown (Populated strictly with qualifying list)   │
-│  • Visual Scope Badge ("Scoped: Remodel, Family, Solar, ...")   │
+│                       src/ui/FiscalSection.tsx                  │
+│  - Year State: 2025 | 2026 | yoy                                │
+│  - Q3 active for 2026; Q4 disabled.                             │
+│  - Charts & Table updated for Jan-Sep coverage.                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### State & Component Mapping
-
-| Component | Responsibility | Keyword Scoping Impact |
-| :--- | :--- | :--- |
-| `getPermitData.ts` | CSV parsing & cache management | Filters raw records before creating `PermitFetchResult`; populates `availableSubtypes` with only qualifying subtypes. |
-| `DevMetricsDashboard.tsx` | Core view & calculations | `rawPermits`, `boundsPermits`, and `subtypeOptions` automatically reflect the filtered residential universe. |
-| `DevelopmentFilter.tsx` | User controls | Subtype menu only lists matching subtypes; displays visual indicator chip for active keyword scope. |
-| `PermitSubtypeFilter.tsx` | Multiselect popover | "Select All" and individual toggles operate only over the curated qualifying subtype list. |
+### Execution Steps
+1.  **Data Refresh**: Write new `src/data/fiscalData2026.ts` with the Sep 2026 YTD figures.
+2.  **UI Logic**: Update `FiscalSection.tsx` to handle the Q3 period for 2026.
+3.  **Visualization**: Update `quarterlyComparisonChartData` to ensure Q3 2026 values are mapped correctly.
+4.  **Verification**: Confirm compilation and check YoY delta accuracy.
