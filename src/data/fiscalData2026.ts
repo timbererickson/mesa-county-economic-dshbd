@@ -2,7 +2,7 @@ import type { MonthlyRecord, TaxStreamData, QuarterlyFiscalAggregate } from './f
 
 export const FISCAL_YEAR_2026 = '2026'
 
-// 1. USE TAX 2026 (Report Total YTD Sep: $2,393,433.05)
+// 1. USE TAX 2026 (Report Total YTD Sep: $2,746,002.34)
 const useTaxMonthly2026: MonthlyRecord[] = [
   { month: 'January', monthShort: 'Jan', quarter: 'Q1', amount: 3310.81 },
   { month: 'February', monthShort: 'Feb', quarter: 'Q1', amount: 647623.04 },
@@ -12,10 +12,10 @@ const useTaxMonthly2026: MonthlyRecord[] = [
   { month: 'June', monthShort: 'Jun', quarter: 'Q2', amount: 326724.84 },
   { month: 'July', monthShort: 'Jul', quarter: 'Q3', amount: 385820.73 },
   { month: 'August', monthShort: 'Aug', quarter: 'Q3', amount: 388009.61 },
-  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 0.00 },
+  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 352569.29 },
 ]
 
-// 2. PROPERTY TAX 2026 (Report Total YTD Sep: $30,530,485.55)
+// 2. PROPERTY TAX 2026 (Report Total YTD Sep: $30,647,241.47)
 const propertyTaxMonthly2026: MonthlyRecord[] = [
   { month: 'January', monthShort: 'Jan', quarter: 'Q1', amount: 281057.50 },
   { month: 'February', monthShort: 'Feb', quarter: 'Q1', amount: 8587434.93 },
@@ -25,10 +25,10 @@ const propertyTaxMonthly2026: MonthlyRecord[] = [
   { month: 'June', monthShort: 'Jun', quarter: 'Q2', amount: 7010221.96 },
   { month: 'July', monthShort: 'Jul', quarter: 'Q3', amount: 464080.86 },
   { month: 'August', monthShort: 'Aug', quarter: 'Q3', amount: 308851.26 },
-  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 0.00 },
+  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 116755.92 },
 ]
 
-// 3. SALES TAX 2026 (Report Total YTD Sep: $38,427,692.87)
+// 3. SALES TAX 2026 (Report Total YTD Sep: $44,076,604.31)
 const salesTaxMonthly2026: MonthlyRecord[] = [
   { month: 'January', monthShort: 'Jan', quarter: 'Q1', amount: 18.97 },
   { month: 'February', monthShort: 'Feb', quarter: 'Q1', amount: 6208077.68 },
@@ -38,7 +38,7 @@ const salesTaxMonthly2026: MonthlyRecord[] = [
   { month: 'June', monthShort: 'Jun', quarter: 'Q2', amount: 5554391.94 },
   { month: 'July', monthShort: 'Jul', quarter: 'Q3', amount: 5588261.44 },
   { month: 'August', monthShort: 'Aug', quarter: 'Q3', amount: 6025301.32 },
-  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 1434.30 },
+  { month: 'September', monthShort: 'Sep', quarter: 'Q3', amount: 5650345.74 },
 ]
 
 function calcQuarters2026(records: MonthlyRecord[]) {
@@ -60,7 +60,7 @@ export const USE_TAX_DATA_2026: TaxStreamData = {
   shortName: 'Use Tax',
   description: 'Taxes on taxable goods/services stored, used, or consumed in Mesa County (FY 2026 Sep YTD).',
   color: '#38bdf8', // Cyan
-  grandTotal: 2393433.05,
+  grandTotal: 2746002.34,
   monthlyTotals: useTaxMonthly2026,
   quarterlyTotals: calcQuarters2026(useTaxMonthly2026),
 }
@@ -71,7 +71,7 @@ export const PROPERTY_TAX_DATA_2026: TaxStreamData = {
   shortName: 'Property Tax',
   description: 'Real estate and personal property tax revenues supporting General Fund (FY 2026 Sep YTD).',
   color: '#e4808c', // Pink/Coral
-  grandTotal: 30530485.55,
+  grandTotal: 30647241.47,
   monthlyTotals: propertyTaxMonthly2026,
   quarterlyTotals: calcQuarters2026(propertyTaxMonthly2026),
 }
@@ -82,7 +82,7 @@ export const SALES_TAX_DATA_2026: TaxStreamData = {
   shortName: 'Sales Tax',
   description: 'County-wide retail sales tax collections (FY 2026 Sep YTD).',
   color: '#023e52', // Teal / Primary
-  grandTotal: 38427692.87,
+  grandTotal: 44076604.31,
   monthlyTotals: salesTaxMonthly2026,
   quarterlyTotals: calcQuarters2026(salesTaxMonthly2026),
 }

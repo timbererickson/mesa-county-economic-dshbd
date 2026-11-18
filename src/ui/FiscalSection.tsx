@@ -611,6 +611,67 @@ export default function FiscalSection({ rows: _rows }: FiscalSectionProps) {
         )}
       </div>
 
+      {/* TABOR Refunds Chart (Empty State - Awaiting Data) */}
+      <div className="rounded-2xl p-6 shadow-xl border border-[#045975] space-y-4" style={{ backgroundColor: TEAL }}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-cyan-300" />
+              TABOR Refunds (2025 vs 2026 YoY)
+            </h3>
+            <p className="text-xs text-cyan-200/80 mt-0.5">
+              Side-by-side comparison of Taxpayer&apos;s Bill of Rights (TABOR) refund activity.
+            </p>
+          </div>
+        </div>
+
+        <div className="relative">
+          <ResponsiveContainer width="100%" height={290}>
+            <BarChart
+              data={[
+                { label: 'Q1 (Jan–Mar)', val_2025: null, val_2026: null },
+                { label: 'Q2 (Apr–Jun)', val_2025: null, val_2026: null },
+                { label: 'Q3 (Jul–Sep)', val_2025: null, val_2026: null },
+                { label: 'Q4 (Oct–Dec)', val_2025: null, val_2026: null },
+              ]}
+              margin={{ top: 15, right: 30, left: 10, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.12)" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.85)' }}
+                axisLine={{ stroke: '#045975' }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.85)' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v: number) => `$${(v / 1_000_000).toFixed(1)}M`}
+              />
+              <Bar dataKey="val_2025" name="val_2025" fill={BAR_2025} radius={[4, 4, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="val_2026" name="val_2026" fill={BAR_2026} radius={[4, 4, 0, 0]} maxBarSize={48} />
+            </BarChart>
+          </ResponsiveContainer>
+
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-[#012531]/90 border border-[#045975] rounded-xl px-5 py-3 text-center shadow-lg">
+              <p className="text-sm font-semibold text-white">No TABOR Refund Data Available Yet</p>
+              <p className="text-xs text-cyan-200/80 mt-0.5">
+                Chart will populate automatically once verified TABOR refund figures are added.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <RetoolLegend
+          items={[
+            { label: 'Year 2025 Refunds', color: BAR_2025 },
+            { label: 'Year 2026 Refunds', color: BAR_2026 },
+          ]}
+        />
+      </div>
+
     </div>
   )
 }
